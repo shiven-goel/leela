@@ -1,0 +1,168 @@
+@import "tailwindcss";
+@import "@fontsource-variable/baloo-2/index.css";
+@import "@fontsource/mukta/latin-400.css";
+@import "@fontsource/mukta/latin-500.css";
+@import "@fontsource/mukta/latin-600.css";
+@import "@fontsource/mukta/latin-700.css";
+
+/* Leela tokens. Day: cool muslin and neel indigo. Night: deep navy with amber text. */
+:root,
+[data-theme="day"] {
+  color-scheme: light;
+  --bg: #f1f3fa;
+  --card: #ffffff;
+  --card-2: #f7f8fd;
+  --ink: #1b1f3b;
+  --ink-2: #555b7c;
+  --ink-3: #868cab;
+  --line: #dfe3f0;
+  --brand: #3b2fb0;
+  --brand-ink: #ffffff;
+  --scrim: rgba(17, 20, 45, 0.42);
+
+  --sleep: #5847dd;      --sleep-soft: #eceafd;
+  --feed: #e0920a;       --feed-soft: #fff1d3;
+  --diaper: #0d9781;     --diaper-soft: #dcf4ee;
+  --pump: #d63b76;       --pump-soft: #fce4ed;
+  --health: #dd4630;     --health-soft: #fde6e1;
+  --growth: #2b8650;     --growth-soft: #e0f1e6;
+  --activity: #2480cb;   --activity-soft: #e0eefb;
+  --milestone: #c27a0c;  --milestone-soft: #fbefd7;
+  --note: #8460c7;       --note-soft: #efe8fa;
+  --contraction: #a3418c; --contraction-soft: #f6e2f0;
+
+  --ring-day: #fff3cf;
+  --ring-night: #e3e6f8;
+  --shadow-lift: 0 1px 0 rgba(27, 31, 59, 0.04), 0 8px 24px -12px rgba(27, 31, 59, 0.18);
+}
+
+[data-theme="night"] {
+  color-scheme: dark;
+  --bg: #0a0d1d;
+  --card: #131733;
+  --card-2: #0f1329;
+  --ink: #f1d9a6;
+  --ink-2: #b6a37e;
+  --ink-3: #7c7262;
+  --line: #232946;
+  --brand: #e5be76;
+  --brand-ink: #15182f;
+  --scrim: rgba(0, 0, 0, 0.6);
+
+  --sleep: #8076e6;      --sleep-soft: #1d1b45;
+  --feed: #d6a240;       --feed-soft: #2a2213;
+  --diaper: #3caf9b;     --diaper-soft: #102a28;
+  --pump: #d6608c;       --pump-soft: #2c1424;
+  --health: #dd6a55;     --health-soft: #2d1714;
+  --growth: #4ea36f;     --growth-soft: #12261b;
+  --activity: #4a99d6;   --activity-soft: #102336;
+  --milestone: #cf983c;  --milestone-soft: #2a2010;
+  --note: #9b82d4;       --note-soft: #1f1834;
+  --contraction: #bd69a8; --contraction-soft: #2a1426;
+
+  --ring-day: #1c1e33;
+  --ring-night: #151a3a;
+  --shadow-lift: 0 0 0 1px rgba(241, 217, 166, 0.04);
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-card: var(--card);
+  --color-card-2: var(--card-2);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
+  --color-line: var(--line);
+  --color-brand: var(--brand);
+  --color-brand-ink: var(--brand-ink);
+  --color-sleep: var(--sleep);
+  --color-feed: var(--feed);
+  --color-diaper: var(--diaper);
+  --color-pump: var(--pump);
+  --color-health: var(--health);
+  --color-growth: var(--growth);
+  --color-activity: var(--activity);
+  --color-milestone: var(--milestone);
+  --color-note: var(--note);
+  --color-contraction: var(--contraction);
+  --font-display: "Baloo 2 Variable", "Baloo 2", ui-rounded, system-ui, sans-serif;
+  --font-sans: "Mukta", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --shadow-lift: var(--shadow-lift);
+}
+
+@layer base {
+html,
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  -webkit-tap-highlight-color: transparent;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+body {
+  min-height: 100dvh;
+  overscroll-behavior-y: none;
+  font-size: 16px;
+  line-height: 1.45;
+}
+
+#root {
+  min-height: 100dvh;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+:focus-visible {
+  outline: 3px solid var(--brand);
+  outline-offset: 2px;
+  border-radius: 10px;
+}
+
+.num {
+  font-family: var(--font-display);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
+.safe-top {
+  padding-top: max(env(safe-area-inset-top), 12px);
+}
+
+.safe-bottom {
+  padding-bottom: max(env(safe-area-inset-bottom), 10px);
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  scrollbar-width: none;
+}
+
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+@keyframes leela-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
+}
+.pulse-dot {
+  animation: leela-pulse 2s ease-in-out infinite;
+}
