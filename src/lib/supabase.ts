@@ -4,6 +4,8 @@ const url = import.meta.env.VITE_SUPABASE_URL as string | undefined
 const key = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string | undefined
 
 export const backendConfigured = Boolean(url && key)
+export const SUPABASE_URL = url ?? ''
+export const SUPABASE_KEY = key ?? ''
 
 export const supabase = createClient(url || 'http://localhost:54321', key || 'not-configured', {
   auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false, storageKey: 'leela-auth' },

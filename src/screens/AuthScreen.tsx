@@ -2,7 +2,7 @@ import clsx from 'clsx'
 import { useState } from 'react'
 import { LeelaMark } from '../components/LeelaMark'
 import { Button, TextInput } from '../components/ui'
-import { backendConfigured, supabase } from '../lib/supabase'
+import { SUPABASE_KEY, SUPABASE_URL, backendConfigured, supabase } from '../lib/supabase'
 import { bootstrap } from '../lib/sync'
 
 const MESSAGES: Record<string, string> = {
@@ -32,17 +32,18 @@ export function AuthScreen() {
     setBusy(true)
     try {
       if (mode === 'new') {
-        const { error: fnError } = await supabase.functions.invoke('signup', {
-          body: { email: email.trim(), password, name: name.trim() },
-        })
-        if (fnError) {
-          let code = 'signup_failed'
-          try {
-            const ctx = (fnError as { context?: Response }).context
-            if (ctx) code = ((await ctx.json()) as { error?: string }).error ?? code
-          } catch {
-            /* keep the generic message */
-          }
+        let code: string | null = null
+        try {
+          const res = await fetch(`${SUPABASE_URL}/functions/v1/signup`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', apikey: SUPABASE_KEY },
+            body: JSON.stringify({ email: email.trim(), password, name: name.trim() }),
+          })
+          if (!res.ok) code = ((await res.json().catch(() => ({}))) as { error?: string }).error ?? 'signup_failed'
+        } catch {
+          code = 'network'
+        }
+        if (code) {
           setError(MESSAGES[code] ?? 'Couldn’t create your account. Check your connection and try again.')
           return
         }

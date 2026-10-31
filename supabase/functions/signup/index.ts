@@ -38,7 +38,13 @@ Deno.serve(async (req) => {
   if (!name) return reply({ error: "name_required" }, 400);
 
   const url = Deno.env.get("SUPABASE_URL");
-  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? Deno.env.get("SUPABASE_SECRET_KEY");
+  let serviceKey: string | undefined;
+  try {
+    serviceKey = JSON.parse(Deno.env.get("SUPABASE_SECRET_KEYS") ?? "{}").default;
+  } catch {
+    serviceKey = undefined;
+  }
+  serviceKey ??= Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
   if (!url || !serviceKey) return reply({ error: "server_not_configured" }, 500);
 
   const admin = createClient(url, serviceKey, {
