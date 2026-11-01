@@ -1,6 +1,6 @@
 // Keeps every phone in the family in step: initial load, live updates, catch-up refreshes,
 // and an offline outbox that replays changes in order once the connection is back.
-import type { RealtimeChannel } from '@supabase/supabase-js'
+import type { RealtimeChannel, SupabaseClient } from '@supabase/supabase-js'
 import { db, type OutboxOp } from './db'
 import { getState, useLeela } from './store'
 import { isNetworkError, supabase } from './supabase'
@@ -380,14 +380,17 @@ async function pullRow(op: OutboxOp): Promise<void> {
 
 type OpResult = 'done' | 'retry'
 
+// Outbox rows are replayed generically, so they go through an untyped view of the client.
+const untyped = supabase as unknown as SupabaseClient
+
 async function runOp(op: OutboxOp): Promise<OpResult> {
   try {
     if (op.kind === 'insert' && op.table) {
-      const { error } = await supabase.from(op.table).upsert(op.row!, { onConflict: 'id', ignoreDuplicates: true })
+      const { error } = await untyped.from(op.table).upsert(op.row!, { onConflict: 'id', ignoreDuplicates: true })
       return error ? handleError(op, error) : 'done'
     }
     if (op.kind === 'update' && op.table) {
-      let q = supabase.from(op.table).update(op.patch!).eq('id', op.rowId)
+      let q = untyped.from(op.table).update(op.patch!).eq('id', op.rowId)
       if (op.ifUpdatedAt) q = q.eq('updated_at', op.ifUpdatedAt)
       const { data, error } = await q.select('*')
       if (error) return handleError(op, error)
@@ -401,7 +404,7 @@ async function runOp(op: OutboxOp): Promise<OpResult> {
       return 'done'
     }
     if (op.kind === 'rpc' && op.fn) {
-      const { error } = await supabase.rpc(op.fn, op.args)
+      const { error } = await untyped.rpc(op.fn, op.args)
       return error ? handleError(op, error) : 'done'
     }
     return 'done'

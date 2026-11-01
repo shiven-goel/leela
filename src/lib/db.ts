@@ -1,4 +1,5 @@
 import Dexie, { type Table } from 'dexie'
+import type { RpcName } from './database.types'
 
 /** A change waiting to reach the server, replayed in order. */
 export interface OutboxOp {
@@ -10,7 +11,7 @@ export interface OutboxOp {
   row?: Record<string, unknown>
   patch?: Record<string, unknown>
   ifUpdatedAt?: string
-  fn?: string
+  fn?: RpcName
   args?: Record<string, unknown>
   createdAt: number
 }

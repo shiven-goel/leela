@@ -6,6 +6,7 @@ import { TYPES } from './config'
 import { nursingSeconds } from './counting'
 import type { Child, EventData, EventType, LeelaEvent, Prefs, Side, TimerSegment } from './types'
 import { uuid } from './uuid'
+import type { RpcName } from './database.types'
 
 const nowIso = () => new Date().toISOString()
 
@@ -277,8 +278,8 @@ export async function saveFamilySettings(patch: { name?: string; timezone?: stri
 // ---------------------------------------------------------------------------
 export type RpcResult = { ok: boolean; error?: string; [k: string]: unknown }
 
-export async function rpc(fn: string, args: Record<string, unknown> = {}): Promise<RpcResult> {
-  const { data, error } = await supabase.rpc(fn, args)
+export async function rpc(fn: RpcName, args: Record<string, unknown> = {}): Promise<RpcResult> {
+  const { data, error } = await supabase.rpc(fn, args as never)
   if (error) return { ok: false, error: error.message }
   return (data ?? { ok: true }) as RpcResult
 }

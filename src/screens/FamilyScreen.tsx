@@ -11,6 +11,7 @@ import { bootstrap, refresh, teardown } from '../lib/sync'
 import { getThemeMode, setThemeMode, type ThemeMode } from '../lib/theme'
 import { ageText } from '../lib/time'
 import type { Child } from '../lib/types'
+import type { RpcName } from '../lib/database.types'
 
 export function FamilyScreen() {
   const family = useLeela((s) => s.family)!
@@ -48,7 +49,7 @@ export function FamilyScreen() {
     toast({ text: 'Invite copied. Paste it into WhatsApp or a message.' })
   }
 
-  const ownerAction = async (fn: string, args: Record<string, unknown>, done: string) => {
+  const ownerAction = async (fn: RpcName, args: Record<string, unknown>, done: string) => {
     if (!navigator.onLine) {
       toast({ text: 'This needs a connection.', tone: 'error' })
       return
