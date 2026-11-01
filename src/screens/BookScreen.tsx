@@ -48,8 +48,11 @@ export function BookScreen({ open, onClose }: { open: boolean; onClose: () => vo
 
   const print = async () => {
     setPrinting(true)
-    // Let the print copy render, then wait for its photos so none print blank.
+    // Let the print copy render and fetch every photo's address, then wait for the photos
+    // themselves so none print blank.
+    const until = Date.now() + 15000
     await new Promise((r) => setTimeout(r, 120))
+    while (document.querySelector('.print-root [data-photo-pending]') && Date.now() < until) await new Promise((r) => setTimeout(r, 150))
     const imgs = [...document.querySelectorAll<HTMLImageElement>('.print-root img')]
     const ready = (img: HTMLImageElement) =>
       img.complete
@@ -58,7 +61,7 @@ export function BookScreen({ open, onClose }: { open: boolean; onClose: () => vo
             img.addEventListener('load', () => r(), { once: true })
             img.addEventListener('error', () => r(), { once: true })
           })
-    await Promise.race([Promise.all(imgs.map(ready)), new Promise((r) => setTimeout(r, 15000))])
+    await Promise.race([Promise.all(imgs.map(ready)), new Promise((r) => setTimeout(r, Math.max(1000, until - Date.now())))])
     window.print()
     setPrinting(false)
   }
@@ -255,7 +258,8 @@ function Memory({ mem, pt, tz }: { mem: BookMemory; pt: (n: number) => string; t
 }
 
 function BookPhoto({ path }: { path: string }) {
-  const [url, setUrl] = useState<string | null>(null)
+  // undefined while the photo's address is being fetched, so printing can wait for it.
+  const [url, setUrl] = useState<string | null | undefined>(undefined)
   useEffect(() => {
     let alive = true
     void photoUrl(path).then((u) => alive && setUrl(u))
@@ -263,6 +267,7 @@ function BookPhoto({ path }: { path: string }) {
       alive = false
     }
   }, [path])
+  if (url === undefined) return <span data-photo-pending="" style={{ display: 'block', width: '100%', height: '100%' }} />
   return url ? <img src={url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} /> : null
 }
 

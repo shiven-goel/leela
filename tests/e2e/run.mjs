@@ -151,8 +151,15 @@ async function tab(p, name) {
   await p.page.waitForTimeout(300)
 }
 const dialog = (p) => p.page.getByRole('dialog').last()
+/** Waits for every sheet to finish closing (they slide away), so nothing is half on screen. */
+const noDialogs = (p) => p.page.waitForFunction(() => !document.querySelector('[role=dialog]'))
+/** A big button on Today: Sleep (or Wake up), Feed, Diaper or More. */
+async function tile(p, name) {
+  await noDialogs(p)
+  await p.page.getByRole('button', { name: new RegExp(`^${name}\\b`) }).click()
+}
 async function more(p, label) {
-  await p.page.getByRole('button', { name: /^More/ }).click()
+  await tile(p, 'More Health')
   await p.page.getByRole('dialog', { name: 'Log something' }).getByRole('button', { name: label, exact: true }).click()
   await p.page.waitForTimeout(300)
 }
@@ -332,7 +339,7 @@ async function full() {
   )
   if (passed('A2')) {
     momApi = await apiAs(email('mom'))
-    familyId = (await momApi.from('family_members').select('family_id').is('removed_at', null).maybeSingle()).data?.family_id ?? ''
+    familyId = (await momApi.from('families').select('id').single()).data?.id ?? ''
   }
   const stranger = await phone('stranger')
   await check(
@@ -365,7 +372,7 @@ async function full() {
     'L1',
     'A diaper logged in two taps appears on the other phone',
     async () => {
-      await mom.page.getByRole('button', { name: /^Diaper/ }).click()
+      await tile(mom, 'Diaper')
       await dialog(mom).getByRole('button', { name: 'Wet', exact: true }).click()
       return timed('live', () => seen(dad, 'Wet, by Mom'))
     },
@@ -375,7 +382,7 @@ async function full() {
     'L2',
     'A sleep timer started on one phone runs on the other',
     async () => {
-      await mom.page.getByRole('button', { name: /^Sleep/ }).click()
+      await tile(mom, 'Sleep')
       return timed('live', () => dad.page.getByRole('region', { name: /^Asleep/ }).waitFor({ timeout: 12_000 }))
     },
     { needs: ['A5'] },
@@ -396,7 +403,8 @@ async function full() {
     'L4',
     'Both parents pressing Sleep at the same moment leaves exactly one timer',
     async () => {
-      await Promise.all([mom.page.getByRole('button', { name: /^Sleep/ }).click(), dad.page.getByRole('button', { name: /^Sleep/ }).click()])
+      await Promise.all([noDialogs(mom), noDialogs(dad)])
+      await Promise.all([mom.page.getByRole('button', { name: /^Sleep\b/ }).click(), dad.page.getByRole('button', { name: /^Sleep\b/ }).click()])
       await mom.page.waitForTimeout(6000)
       const a = await mom.page.getByRole('region', { name: /^Asleep/ }).count()
       const b = await dad.page.getByRole('region', { name: /^Asleep/ }).count()
@@ -410,7 +418,7 @@ async function full() {
     'L5',
     'Breastfeeding timer: switch sides, pause and resume, all seen live by Dad',
     async () => {
-      await mom.page.getByRole('button', { name: /^Feed/ }).click()
+      await tile(mom, 'Feed')
       await dialog(mom).getByRole('tab', { name: 'Breast' }).click()
       await dialog(mom).getByRole('button', { name: /^Start left/ }).click()
       await dad.page.getByRole('region', { name: /^Breastfeeding/ }).waitFor({ timeout: 12_000 })
@@ -432,7 +440,7 @@ async function full() {
     'L6',
     'A bottle with its amount and formula shows on the other phone',
     async () => {
-      await mom.page.getByRole('button', { name: /^Feed/ }).click()
+      await tile(mom, 'Feed')
       await dialog(mom).getByRole('tab', { name: 'Bottle' }).click()
       await dialog(mom).getByLabel('amount', { exact: true }).fill('120')
       await dialog(mom).getByRole('radio', { name: 'Formula' }).click()
@@ -604,7 +612,7 @@ async function full() {
     'L24',
     'A diaper with colour and rash',
     async () => {
-      await mom.page.getByRole('button', { name: /^Diaper/ }).click()
+      await tile(mom, 'Diaper')
       const d = dialog(mom)
       await d.getByRole('button', { name: 'Add color, texture or rash' }).click()
       await d.getByRole('button', { name: 'Dirty', exact: true }).click()
@@ -642,7 +650,7 @@ async function full() {
       const before = await count(dad, 'Wet, by Mom')
       await mom.ctx.setOffline(true)
       for (let i = 0; i < 3; i++) {
-        await mom.page.getByRole('button', { name: /^Diaper/ }).click()
+        await tile(mom, 'Diaper')
         await dialog(mom).getByRole('button', { name: 'Wet', exact: true }).click()
         await mom.page.waitForTimeout(500)
       }
@@ -784,7 +792,9 @@ async function full() {
       await dad.page.getByText('Big day').first().waitFor({ timeout: 15_000 })
       await waitFor(() => dad.page.evaluate(() => [...document.querySelectorAll('main img')].filter((i) => i.complete && i.naturalWidth > 0).length >= 2), 25_000)
       await dad.page.getByText('Big day').first().click()
-      const body = await dad.page.getByRole('textbox', { name: 'Note', exact: true }).inputValue()
+      const box = dad.page.getByRole('textbox', { name: 'Note', exact: true })
+      await waitFor(async () => (await box.inputValue()).length > 0, 10_000)
+      const body = await box.inputValue()
       assert(body.length === longBody.length, `the note has ${body.length} characters, expected ${longBody.length}`)
       await dad.page.getByRole('button', { name: 'Back', exact: true }).click()
       await noteClosed(dad)
@@ -968,7 +978,14 @@ async function full() {
     await tab(mom, 'Diary')
     await mom.page.getByRole('button', { name: 'Make the diary book' }).click()
     await mom.page.getByText(/Here’s how it will look/).waitFor({ timeout: 30_000 })
-    await waitFor(() => mom.page.evaluate(() => [...document.querySelectorAll('.print-root img')].every((i) => i.complete)), 30_000)
+    await waitFor(
+      () =>
+        mom.page.evaluate(() => {
+          const imgs = [...document.querySelectorAll('.print-root img')]
+          return !document.querySelector('.print-root [data-photo-pending]') && imgs.length >= 2 && imgs.every((i) => i.complete && i.naturalWidth > 0)
+        }),
+      30_000,
+    )
     const pdf = `${OUT}/diary-book.pdf`
     await mom.page.pdf({ path: pdf, format: 'A4', printBackground: true })
     await mom.page.getByRole('button', { name: 'Back', exact: true }).click()
@@ -992,7 +1009,7 @@ async function full() {
     await d.getByRole('button', { name: 'Add baby' }).click()
     await tab(mom, 'Today')
     await mom.page.getByRole('button', { name: 'Ravi', exact: true }).click()
-    await mom.page.getByRole('button', { name: /^Diaper/ }).click()
+    await tile(mom, 'Diaper')
     await dialog(mom).getByRole('button', { name: 'Dry', exact: true }).click()
     await seen(mom, 'Dry, by you')
     await mom.page.getByRole('button', { name: 'Asha', exact: true }).click()
@@ -1060,7 +1077,7 @@ async function full() {
     await mom.page.locator('li', { hasText: 'Nani' }).waitFor({ state: 'detached', timeout: 15_000 })
     const g = await apiAs(email('grandma'))
     const { data } = await g.from('events').select('id').eq('family_id', familyId)
-    assert((data ?? []).length === 0, `the removed member can still read ${data.length} entries`)
+    assert((data ?? []).length === 0, `the removed member can still read ${data?.length} entries`)
     await grandma.page.reload()
     await grandma.page.getByRole('heading', { name: 'Set up your family' }).waitFor({ timeout: 30_000 })
   }, { needs: ['F6'] })
@@ -1098,7 +1115,7 @@ async function full() {
     const me = (await s.auth.getUser()).data.user.id
     for (const table of ['events', 'children', 'audit_log', 'imports', 'timer_segments']) {
       const { data } = await s.from(table).select('id').eq('family_id', familyId)
-      assert((data ?? []).length === 0, `read ${data.length} rows of ${table}`)
+      assert((data ?? []).length === 0, `read ${data?.length} rows of ${table}`)
     }
     const fam = await s.from('families').select('id, code').eq('id', familyId)
     assert(!(fam.data ?? []).length, 'read our family and its code')
@@ -1159,14 +1176,15 @@ async function full() {
     await mom.page.getByRole('button', { name: 'See all activity' }).click()
     const sheet = mom.page.getByRole('dialog', { name: 'Activity' })
     await sheet.locator('li').first().waitFor({ timeout: 15_000 })
-    for (let i = 0; i < 25; i++) {
+    const older = sheet.getByRole('button', { name: 'Show older' })
+    const busy = sheet.getByRole('button', { name: 'Loading…' })
+    for (let i = 0; i < 40; i++) {
+      await busy.waitFor({ state: 'detached', timeout: 20_000 })
       const text = await sheet.textContent()
       if (want.every((w) => (typeof w === 'string' ? text.includes(w) : w.test(text)))) break
-      const older = sheet.getByRole('button', { name: 'Show older' })
       if (!(await older.count())) break
-      const before = await sheet.locator('li').count()
       await older.click()
-      await waitFor(async () => (await sheet.locator('li').count()) > before || !(await sheet.getByRole('button', { name: 'Show older' }).count()), 15_000)
+      await mom.page.waitForTimeout(300)
     }
     const text = await sheet.textContent()
     const missing = want.filter((w) => !(typeof w === 'string' ? text.includes(w) : w.test(text))).map(String)

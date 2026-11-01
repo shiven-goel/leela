@@ -319,6 +319,7 @@ function CatchUp({ events, now }: { events: LeelaEvent[]; now: number }) {
   const family = useLeela((s) => s.family)
   const segments = useLeela((s) => s.segments)
   const set = useLeela((s) => s.set)
+  useLeela((s) => s.profiles)
   if (!since || dismissed || !family) return null
   const sinceMs = Date.parse(since)
   if (now - sinceMs < 2 * 3_600_000) return null

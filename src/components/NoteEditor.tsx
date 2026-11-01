@@ -37,7 +37,8 @@ export function NoteEditor({ open, noteId, onClose }: { open: boolean; noteId?: 
   const initial = useRef('')
   const openedVersion = useRef<string | undefined>(undefined)
 
-  useEffect(() => {
+  // Before the screen is drawn, so it never flashes the previous note's text.
+  useLayoutEffect(() => {
     if (!open) return
     setError(null)
     setFound(null)

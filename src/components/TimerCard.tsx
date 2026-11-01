@@ -16,6 +16,7 @@ export function TimerCard({ event, onOpen }: { event: LeelaEvent; onOpen: (e: Le
   const family = useLeela((s) => s.family)
   const segments = useLeela((s) => s.segments)
   const userId = useLeela((s) => s.userId)
+  useLeela((s) => s.profiles)
   const meta = TYPES[event.type]
   const tz = family?.timezone ?? 'UTC'
   const started = Date.parse(event.started_at)

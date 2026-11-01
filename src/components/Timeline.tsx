@@ -19,6 +19,8 @@ export function Timeline({
   const family = useLeela((s) => s.family)
   const segments = useLeela((s) => s.segments)
   const userId = useLeela((s) => s.userId)
+  // Subscribed so a renamed family member shows up straight away.
+  useLeela((s) => s.profiles)
   const prefs = myPrefs()
   const segs = Object.values(segments)
 

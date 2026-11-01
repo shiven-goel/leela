@@ -1,6 +1,6 @@
 import clsx from 'clsx'
 import { ArrowCounterClockwise, CaretDown, CheckCircle, FileText, Question, X } from '@phosphor-icons/react'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { TypeIcon } from '../components/Icon'
 import { Overlay } from '../components/Overlay'
 import { Sheet } from '../components/Sheet'
@@ -120,7 +120,8 @@ export function ImportScreen({ open, onClose }: { open: boolean; onClose: () => 
   const picker = useRef<HTMLInputElement>(null)
   const child = kids.find((c) => c.id === childId) ?? kids[0]
 
-  useEffect(() => {
+  // Before the screen is drawn, so reopening never flashes the last import's result.
+  useLayoutEffect(() => {
     if (!open) return
     setStep('choose')
     setError(null)
