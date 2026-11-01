@@ -1,0 +1,36 @@
+{
+ "summary": {
+  "run": "20261101-pb2j",
+  "mode": "push",
+  "at": "2026-11-01T15:23:02.763Z",
+  "minutes": 1.1,
+  "pass": 3,
+  "fail": 0,
+  "skip": 0,
+  "live_sync_ms": null
+ },
+ "results": [
+  {
+   "id": "N1",
+   "name": "Reminders: turning them on saves this phone, and a test notification arrives through a real push service",
+   "status": "pass",
+   "ms": 8880,
+   "note": "Etc/GMT+2; “Leela reminders are on: You’ll get a notification 15 minutes before each sweet spot.”"
+  },
+  {
+   "id": "N2",
+   "name": "A reminder arrives before the sweet spot, sent by the every-minute schedule",
+   "status": "pass",
+   "ms": 56115,
+   "note": "“Kai’s nap sweet spot is now. Sweet spot 1:15 – 1:45 PM.”"
+  },
+  {
+   "id": "N3",
+   "name": "Turning reminders off on the phone stops them",
+   "status": "pass",
+   "ms": 327,
+   "note": ""
+  }
+ ],
+ "errors": []
+}
