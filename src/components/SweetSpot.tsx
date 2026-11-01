@@ -486,6 +486,7 @@ function Reminders({ name }: { name: string }) {
         onChange={(v) => void choose(v)}
         tone="sleep"
         columns={5}
+        compact
       />
       <p className="mt-2 text-[14px] text-ink-2">
         {lead === null

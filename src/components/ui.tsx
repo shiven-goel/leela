@@ -92,6 +92,7 @@ export function Choices<T extends string>({
   tone = 'brand',
   columns,
   allowNone,
+  compact,
 }: {
   options: readonly { id: T; label: string; icon?: ReactNode }[]
   value: T | undefined | null
@@ -99,6 +100,8 @@ export function Choices<T extends string>({
   tone?: string
   columns?: number
   allowNone?: boolean
+  /** Tighter padding, for rows of many short options. */
+  compact?: boolean
 }) {
   return (
     <div
@@ -116,7 +119,8 @@ export function Choices<T extends string>({
             aria-checked={on}
             onClick={() => onChange(on && allowNone ? undefined : o.id)}
             className={clsx(
-              'flex min-h-12 items-center justify-center gap-1.5 rounded-2xl px-3 py-2 text-center text-[15px] font-semibold leading-tight transition-colors',
+              'flex min-h-12 items-center justify-center gap-1.5 rounded-2xl py-2 text-center text-[15px] font-semibold leading-tight transition-colors',
+              compact ? 'px-1 whitespace-nowrap' : 'px-3',
               !on && 'bg-card-2 text-ink ring-1 ring-line',
             )}
             style={on ? { background: `var(--${tone})`, color: tone === 'brand' ? 'var(--brand-ink)' : '#fff' } : undefined}
