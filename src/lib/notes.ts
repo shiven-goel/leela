@@ -6,7 +6,11 @@ import { TYPES } from './config'
 import { familyVocab, namesToSkip } from './import/learn'
 import { parseLog, type Draft, type ParseResult } from './import/parse'
 import { markDuplicates } from './import/save'
+import type { UnknownTerm } from './import/vocab'
 import { getState, myPrefs } from './store'
+
+/** In a note, only shorthand next to a time or an amount is worth asking about; the rest is prose. */
+export const askAbout = (u: UnknownTerm) => u.examples.some((ex) => /\d/.test(ex))
 
 /** Kinds that make sense with only a date, so they're ticked even when the note gives no time. */
 const DATE_LEVEL = new Set(['milestone', 'growth', 'symptom', 'temperature', 'medicine', 'activity', 'solids'])
@@ -37,6 +41,14 @@ export function interpretNote(body: string, at: Date, childId: string): { result
     .map((x) => (x.flags.includes('no_time') ? { ...x, start: at.getTime(), end: x.end ? at.getTime() + (x.end - x.start) : null } : x))
     .map((x) => ({ ...x, flags: x.flags.filter((f) => f !== 'future' || x.start > now + 10 * 60_000) }))
     .filter((x) => x.type !== 'note' && !x.flags.includes('future') && !x.flags.includes('before_birth'))
+  // Saying the same thing twice in a note is one entry, not two.
+  const said = new Set<string>()
+  drafts = drafts.filter((x) => {
+    const k = `${x.type}|${Math.round(x.start / 60_000)}|${JSON.stringify(x.data)}`
+    if (said.has(k)) return false
+    said.add(k)
+    return true
+  })
   drafts = markDuplicates(drafts, Object.values(s.events), childId).map((x) => ({
     ...x,
     include: !x.flags.includes('duplicate') && (!x.flags.some((f) => f === 'no_time' || f === 'approx_time') || DATE_LEVEL.has(x.type)),

@@ -1,5 +1,6 @@
-import { Copy, Crown, FileArrowUp, PencilSimple, Plus, ShareNetwork, X } from '@phosphor-icons/react'
+import { ClockCounterClockwise, Copy, Crown, DownloadSimple, FileArrowUp, PencilSimple, Plus, ShareNetwork, X } from '@phosphor-icons/react'
 import { useState } from 'react'
+import { ActivitySheet } from '../components/ActivitySheet'
 import { ChildSheet } from '../components/ChildSheet'
 import { Sheet } from '../components/Sheet'
 import { Button, Choices, TextInput } from '../components/ui'
@@ -10,6 +11,7 @@ import { supabase } from '../lib/supabase'
 import { bootstrap, refresh, teardown } from '../lib/sync'
 import { getThemeMode, setThemeMode, type ThemeMode } from '../lib/theme'
 import { forgetWord } from '../lib/import/learn'
+import { exportFamilyData, saveBlob } from '../lib/export'
 import { meaningById } from '../lib/import/vocab'
 import { ageText } from '../lib/time'
 import type { Child } from '../lib/types'
@@ -30,6 +32,21 @@ export function FamilyScreen() {
   const [confirmText, setConfirmText] = useState('')
   const [theme, setTheme] = useState<ThemeMode>(getThemeMode())
   const [busy, setBusy] = useState(false)
+  const [activity, setActivity] = useState(false)
+  const [exporting, setExporting] = useState(false)
+
+  const download = async (kind: 'json' | 'csv') => {
+    setExporting(true)
+    try {
+      const files = await exportFamilyData()
+      saveBlob(kind === 'json' ? files.json : files.csv, `${files.baseName}.${kind}`)
+      toast({ text: `Downloaded ${files.counts.entries} entries${kind === 'json' ? ` and ${files.counts.changes} activity records` : ''}.` })
+    } catch (e) {
+      toast({ text: `Couldn’t export: ${e instanceof Error ? e.message : 'unknown error'}`, tone: 'error' })
+    } finally {
+      setExporting(false)
+    }
+  }
 
   const ownerId = family.owner_id && members.some((m) => m.user_id === family.owner_id) ? family.owner_id : members[0]?.user_id
   const iAmOwner = ownerId === userId
@@ -282,6 +299,23 @@ export function FamilyScreen() {
         )}
       </Section>
 
+      <Section title="Your data">
+        <p className="mb-3 text-[15px] text-ink-2">
+          Everything you log is saved on Leela’s server and kept for as long as your family uses Leela. Nothing expires. Deleted entries are hidden, not erased, and every change is recorded in the activity log.
+        </p>
+        <div className="flex flex-col gap-2">
+          <Button variant="secondary" size="md" onClick={() => setActivity(true)}>
+            <ClockCounterClockwise size={18} weight="bold" aria-hidden="true" /> See all activity
+          </Button>
+          <Button variant="secondary" size="md" disabled={exporting} onClick={() => void download('csv')}>
+            <DownloadSimple size={18} weight="bold" aria-hidden="true" /> {exporting ? 'Preparing…' : 'Download entries (Excel, CSV)'}
+          </Button>
+          <Button variant="secondary" size="md" disabled={exporting} onClick={() => void download('json')}>
+            <DownloadSimple size={18} weight="bold" aria-hidden="true" /> Download everything (full backup)
+          </Button>
+        </div>
+      </Section>
+
       <Section title="Your account">
         <p className="mb-3 text-[15px] text-ink-2">Signed in as {email}</p>
         <div className="flex flex-col gap-2">
@@ -325,6 +359,7 @@ export function FamilyScreen() {
       </Sheet>
 
       {childSheet && <ChildSheet open onClose={() => setChildSheet(null)} child={childSheet.child} />}
+      <ActivitySheet open={activity} onClose={() => setActivity(false)} />
     </div>
   )
 }

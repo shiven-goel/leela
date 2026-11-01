@@ -76,11 +76,20 @@ export async function logEvent(input: NewEventInput, opts?: { quiet?: boolean })
   return e
 }
 
-export async function editEvent(id: string, patch: Partial<Pick<LeelaEvent, 'started_at' | 'ended_at' | 'data' | 'notes' | 'photo_paths' | 'child_id'>>, opts?: { force?: boolean }) {
+/**
+ * Changes an entry. `base` is the version the person was looking at when they started editing:
+ * if someone else saved a change since then, the server refuses and the conflict dialog asks
+ * which version should stay.
+ */
+export async function editEvent(
+  id: string,
+  patch: Partial<Pick<LeelaEvent, 'started_at' | 'ended_at' | 'data' | 'notes' | 'photo_paths' | 'child_id'>>,
+  opts?: { force?: boolean; base?: string },
+) {
   const s = getState()
   const cur = s.events[id]
   if (!cur) return
-  const loaded = cur.updated_at
+  const loaded = opts?.base ?? cur.updated_at
   putLocal({ ...cur, ...patch, updated_by: s.userId })
   await enqueue({ kind: 'update', table: 'events', rowId: id, patch, ifUpdatedAt: opts?.force || cur._local ? undefined : loaded })
 }

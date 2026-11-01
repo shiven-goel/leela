@@ -23,15 +23,19 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      # With a custom domain (repository variable LEELA_DOMAIN, e.g. leela.baby) the app lives at
+      # the root of that domain; without one it's at <user>.github.io/leela/.
       - run: npm run build
         env:
-          LEELA_BASE: /leela/
+          LEELA_BASE: ${{ vars.LEELA_DOMAIN && '/' || '/leela/' }}
       - name: Publish to the gh-pages branch
         env:
           TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DOMAIN: ${{ vars.LEELA_DOMAIN }}
         run: |
           cp dist/index.html dist/404.html
           touch dist/.nojekyll
+          if [ -n "$DOMAIN" ]; then echo "$DOMAIN" > dist/CNAME; fi
           cd dist
           git init -q -b gh-pages
           git config user.name "github-actions[bot]"

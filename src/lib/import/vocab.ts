@@ -112,7 +112,11 @@ const COMMON = new Set(
   banana apple pear papaya mango carrot potato pumpkin avocado rice dal khichdi ragi suji oats cereal puree egg curd yogurt
   calpol crocin dolo paracetamol ibuprofen gripe water colic drops syrup ors zinc iron calcium probiotic saline
   side sides each total started start ended end stopped stop finished again later earlier extra top l r lt rt lhs rhs h m hr hrs min mins
-  ki ka ke hai tha thi aur se ko bhi nahi`.split(/\s+/),
+  ki ka ke hai tha thi aur se ko bhi nahi
+  tiny ours log logs note notes diary cute yay wow aww omg lol haha love loved kiss hug hugs fun cozy cosy cake sweet put saw
+  mine yours sat lay laid rain cold hot warm old week weeks month months year years age small calm fine sick ill pain hurt
+  tired sleepy hungry shy bold loud quiet fast slow short even noon eve oh ah hmm wee lil tum tums nose ears eyes hand hands
+  feet toes face hair head belly cheek cheeks smile smiles giggle giggled cuddle cuddles snuggle bliss joy`.split(/\s+/),
 )
 
 export interface UnknownTerm {

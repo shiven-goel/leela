@@ -45,6 +45,8 @@ export interface LeelaState {
   onboarding: boolean
   /** A full screen open over the tabs: importing, writing a note, the diary book. */
   overlay: OverlayState
+  /** Every entry since the first one is on the phone, not just the last few months. */
+  allHistory: boolean
 
   set: (patch: Partial<LeelaState>) => void
   upsertEvents: (rows: LeelaEvent[], opts?: { force?: boolean }) => void
@@ -79,6 +81,7 @@ const initial = {
   removedNotice: false,
   onboarding: false,
   overlay: null as OverlayState,
+  allHistory: false,
 }
 
 export const useLeela = create<LeelaState>((set, get) => ({

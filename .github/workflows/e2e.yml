@@ -1,0 +1,133 @@
+# End-to-end tests against the live backend, in real browsers.
+# full: every feature, with two parents, a second phone, a grandparent and a stranger (about 20 minutes).
+# canary: checks that a long-running test family still has every entry it ever logged (about a minute).
+# Reports go to the e2e-results branch: full/report.md and canary/report.md.
+name: End-to-end tests
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: What to run
+        type: choice
+        options: [full, canary]
+        default: full
+  schedule:
+    - cron: '37 4 * * *' # canary, every day
+    - cron: '17 5 * * 1' # full, every Monday
+
+permissions:
+  contents: write
+
+concurrency:
+  group: e2e
+  cancel-in-progress: false
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      MODE: ${{ inputs.mode || (github.event.schedule == '17 5 * * 1' && 'full') || 'canary' }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+
+      - name: Install the browser and PDF tools
+        if: env.MODE == 'full'
+        run: |
+          npx playwright install --with-deps chromium
+          sudo apt-get install -y -qq poppler-utils > /dev/null
+
+      - name: Build and serve the app
+        if: env.MODE == 'full'
+        run: |
+          npm run build
+          nohup npx vite preview --port 4173 --strictPort > preview.log 2>&1 &
+          for i in $(seq 1 30); do
+            curl -sf http://localhost:4173/ > /dev/null && exit 0
+            sleep 1
+          done
+          cat preview.log
+          exit 1
+
+      - name: Restore the canary family
+        uses: actions/cache/restore@v4
+        with:
+          path: .canary
+          key: leela-canary-${{ github.run_id }}
+          restore-keys: leela-canary-
+
+      - name: Unlock the canary login
+        env:
+          CANARY_KEY: ${{ secrets.CANARY_KEY }}
+        run: |
+          if [ -f .canary/canary.json.enc ]; then
+            if [ -z "$CANARY_KEY" ]; then echo "::error::The canary login is encrypted but CANARY_KEY is missing."; exit 1; fi
+            openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -in .canary/canary.json.enc -out .canary/canary.json -pass env:CANARY_KEY
+          fi
+
+      - name: Run the tests
+        id: e2e
+        continue-on-error: true
+        run: node tests/e2e/run.mjs
+
+      - name: Lock the canary login
+        if: always()
+        env:
+          CANARY_KEY: ${{ secrets.CANARY_KEY }}
+        run: |
+          if [ -f .canary/canary.json ]; then
+            if [ -n "$CANARY_KEY" ]; then
+              openssl enc -aes-256-cbc -pbkdf2 -iter 200000 -salt -in .canary/canary.json -out .canary/canary.json.enc -pass env:CANARY_KEY
+              rm .canary/canary.json
+            else
+              echo "::warning::CANARY_KEY isn't set, so the test family's login is cached unencrypted."
+            fi
+          fi
+
+      - name: Save the canary family
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: .canary
+          key: leela-canary-${{ github.run_id }}
+
+      - name: Check web addresses
+        if: env.MODE == 'full'
+        continue-on-error: true
+        run: node tests/e2e/domains.mjs > e2e-results/domains.txt
+
+      - name: Publish the report to the e2e-results branch
+        if: always()
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+          url="https://x-access-token:${TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          work=$(mktemp -d)
+          if git ls-remote --exit-code --heads "$url" e2e-results > /dev/null 2>&1; then
+            git clone -q --depth 1 --branch e2e-results "$url" "$work/old"
+          fi
+          mkdir -p "$work/new/$MODE"
+          for m in full canary; do
+            if [ "$m" != "$MODE" ] && [ -d "$work/old/$m" ]; then cp -r "$work/old/$m" "$work/new/$m"; fi
+          done
+          cp -r e2e-results/. "$work/new/$MODE/" 2>/dev/null || true
+          rm -rf "$work/new/$MODE/fixtures"
+          cd "$work/new"
+          git init -q -b e2e-results
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -q -m "Test reports: $MODE run $GITHUB_RUN_ID"
+          git push -qf "$url" e2e-results
+          if [ -f "$MODE/report.md" ]; then cat "$MODE/report.md" >> "$GITHUB_STEP_SUMMARY"; fi
+
+      - name: Fail if any check failed
+        if: steps.e2e.outcome == 'failure'
+        run: exit 1

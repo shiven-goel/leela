@@ -54,7 +54,7 @@ export async function bootstrap(): Promise<void> {
   }
   if (!me) {
     teardown()
-    set({ status: 'no_family', family: null, events: {}, segments: {}, children: [], members: [] })
+    set({ status: 'no_family', family: null, events: {}, segments: {}, children: [], members: [], allHistory: false })
     await db.cache.delete(SNAPSHOT_KEY(uid))
     return
   }
@@ -76,6 +76,7 @@ interface Snapshot {
   segments: Record<string, TimerSegment>
   activeChildId: string | null
   lastSyncAt: string | null
+  allHistory?: boolean
 }
 
 function applySnapshot(s: Snapshot) {
@@ -88,6 +89,7 @@ function applySnapshot(s: Snapshot) {
     segments: s.segments,
     activeChildId: s.activeChildId,
     lastSyncAt: s.lastSyncAt,
+    allHistory: Boolean(s.allHistory),
   })
 }
 
@@ -105,6 +107,7 @@ export function saveSnapshotSoon() {
       segments: s.segments,
       activeChildId: s.activeChildId,
       lastSyncAt: s.lastSyncAt,
+      allHistory: s.allHistory,
     }
     void db.cache.put({ key: SNAPSHOT_KEY(s.userId), value: snap })
   }, 800)
@@ -166,18 +169,53 @@ export async function loadFamily(familyId: string): Promise<void> {
     upsertSegments(segs)
   }
   set({ lastSyncAt: syncStart })
+  void ensureProfiles(allEvents.map((e) => e.created_by))
   saveSnapshotSoon()
 }
 
-/** Older history, for the Baby Diary and long-range trends. */
-export async function loadAllHistory(): Promise<void> {
+/** Names for everyone who ever logged or did something in the family, including people who have left. */
+export async function ensureProfiles(ids: (string | null | undefined)[]): Promise<void> {
+  const have = getState().profiles
+  const missing = [...new Set(ids.filter((id): id is string => Boolean(id) && !have[id!]))]
+  if (!missing.length) return
+  const { data } = await supabase.from('profiles').select('*').in('id', missing.slice(0, 200))
+  if (!data?.length) return
+  const profiles = { ...getState().profiles }
+  for (const p of data as Profile[]) profiles[p.id] = { ...p, prefs: p.prefs ?? {} }
+  getState().set({ profiles })
+}
+
+let allHistoryLoading: Promise<void> | null = null
+
+/**
+ * Every entry since the very first one. The phone starts with the last few months; older days
+ * (History, the diary, the book, imports) call this once, and live updates keep it current after.
+ */
+export function loadAllHistory(opts?: { force?: boolean }): Promise<void> {
   const s = getState()
-  if (!s.family) return
-  const rows = await fetchAll<LeelaEvent>((from, to) =>
-    supabase.from('events').select('*').eq('family_id', s.family!.id).order('started_at').range(from, to),
-  )
-  getState().upsertEvents(rows)
-  saveSnapshotSoon()
+  if (!s.family) return Promise.resolve()
+  if (s.allHistory && !opts?.force) return Promise.resolve()
+  if (allHistoryLoading) return allHistoryLoading
+  const familyId = s.family.id
+  allHistoryLoading = (async () => {
+    let failed = false
+    const rows = await fetchAll<LeelaEvent>(
+      (from, to) => supabase.from('events').select('*').eq('family_id', familyId).order('started_at').order('id').range(from, to),
+      () => {
+        failed = true
+      },
+    )
+    if (getState().family?.id !== familyId) return
+    getState().upsertEvents(rows)
+    void ensureProfiles(rows.map((e) => e.created_by))
+    const nursing = rows.filter((e) => e.type === 'nursing').map((e) => e.id)
+    if (nursing.length) getState().upsertSegments(await fetchSegments(nursing))
+    if (!failed) getState().set({ allHistory: true })
+    saveSnapshotSoon()
+  })().finally(() => {
+    allHistoryLoading = null
+  })
+  return allHistoryLoading
 }
 
 async function fetchSegments(eventIds: string[]): Promise<TimerSegment[]> {
@@ -189,14 +227,23 @@ async function fetchSegments(eventIds: string[]): Promise<TimerSegment[]> {
   return out
 }
 
-async function fetchAll<T>(page: (from: number, to: number) => PromiseLike<{ data: unknown; error: unknown }>): Promise<T[]> {
+async function fetchAll<T>(page: (from: number, to: number) => PromiseLike<{ data: unknown; error: unknown }>, onError?: () => void): Promise<T[]> {
   const size = 1000
   const out: T[] = []
   for (let from = 0; ; from += size) {
-    const { data, error } = await page(from, from + size - 1)
-    if (error || !Array.isArray(data)) break
-    out.push(...(data as T[]))
-    if (data.length < size) break
+    let res: { data: unknown; error: unknown }
+    try {
+      res = await page(from, from + size - 1)
+    } catch {
+      onError?.()
+      break
+    }
+    if (res.error || !Array.isArray(res.data)) {
+      onError?.()
+      break
+    }
+    out.push(...(res.data as T[]))
+    if (res.data.length < size) break
   }
   return out
 }
@@ -217,7 +264,7 @@ export async function refresh(): Promise<void> {
   if (!me) {
     // Removed from the family (or left on another device).
     teardown()
-    s.set({ status: 'no_family', family: null, events: {}, segments: {}, children: [], members: [], removedNotice: true })
+    s.set({ status: 'no_family', family: null, events: {}, segments: {}, children: [], members: [], removedNotice: true, allHistory: false })
     await db.cache.delete(SNAPSHOT_KEY(s.userId))
     return
   }

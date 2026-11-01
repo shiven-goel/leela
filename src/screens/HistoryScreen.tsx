@@ -1,6 +1,6 @@
 import clsx from 'clsx'
 import { CalendarBlank, FileArrowUp, Plus } from '@phosphor-icons/react'
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { LogSheet } from '../components/LogSheet'
 import { MoreSheet } from '../components/MoreSheet'
 import { Timeline } from '../components/Timeline'
@@ -8,6 +8,7 @@ import { useNow } from '../hooks/useNow'
 import { TYPES } from '../lib/config'
 import { totalsFor } from '../lib/counting'
 import { activeChild, useLeela } from '../lib/store'
+import { loadAllHistory } from '../lib/sync'
 import { addDaysTz, atLocalTime, dayKey, dayLabel, dayStart, durationText, fmtLongDate } from '../lib/time'
 import type { EventType, LeelaEvent } from '../lib/types'
 import { TZDate } from '@date-fns/tz'
@@ -25,6 +26,14 @@ export function HistoryScreen() {
   const [sheet, setSheet] = useState<{ type: EventType; edit?: LeelaEvent; group?: EventType[] } | null>(null)
   const picker = useRef<HTMLInputElement>(null)
 
+  const allHistory = useLeela((s) => s.allHistory)
+  const [loadingOld, setLoadingOld] = useState(false)
+  // The phone keeps the last few months; older days are fetched the first time someone looks.
+  useEffect(() => {
+    if (allHistory || day > Date.now() - 110 * 86_400_000) return
+    setLoadingOld(true)
+    void loadAllHistory().finally(() => setLoadingOld(false))
+  }, [day, allHistory])
   const events = useMemo(() => Object.values(eventsMap).filter((e) => !e.deleted_at), [eventsMap])
   const days = useMemo(() => {
     const out: number[] = []
@@ -133,7 +142,13 @@ export function HistoryScreen() {
           <Summary tone="feed" label="Solids" value={String(totals.solids)} sub={totals.pumpMl ? `${totals.pumpMl} ml pumped` : 'meals'} />
         </dl>
 
-        <Timeline events={list} now={now} onSelect={(e) => (e.type === 'note' ? useLeela.getState().set({ overlay: { kind: 'note', id: e.id } }) : setSheet({ type: e.type, edit: e }))} empty={`Nothing logged for ${label.toLowerCase()}. Forgot something? Add it here.`} />
+        {loadingOld && !allHistory ? (
+          <p className="rounded-3xl bg-card-2 px-5 py-6 text-center text-[15px] text-ink-2" aria-live="polite">
+            Fetching older days…
+          </p>
+        ) : (
+          <Timeline events={list} now={now} onSelect={(e) => (e.type === 'note' ? useLeela.getState().set({ overlay: { kind: 'note', id: e.id } }) : setSheet({ type: e.type, edit: e }))} empty={`Nothing logged for ${label.toLowerCase()}. Forgot something? Add it here.`} />
+        )}
       </section>
 
       <MoreSheet

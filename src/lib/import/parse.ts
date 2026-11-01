@@ -85,6 +85,8 @@ interface Rec {
   startText?: string
   endText?: string
   durationMin?: number
+  /** Chat messages: startText is when the message was sent, used only if the text gives no time of its own. */
+  sentAt?: boolean
 }
 
 interface Item {
@@ -245,7 +247,7 @@ function whatsappToRecs(lines: string[]): { recs: Rec[]; dateTokens: DateToken[]
       text = m[4]
     }
     if (!text.trim() || WHATSAPP_NOISE.test(text)) return
-    recs.push({ line: i + 1, source: line, text: text.trim(), dateIdx, startText })
+    recs.push({ line: i + 1, source: line, text: text.trim(), dateIdx, startText, sentAt: true })
   })
   return { recs, dateTokens }
 }
@@ -313,7 +315,9 @@ export function parseLog(input: Input, opts: ParseOptions): ParseResult {
       let start: TimeToken | undefined
       let end: TimeToken | undefined
       let body = part
-      if (rowStart) {
+      // "nap 11:30 to 12:45" sent at 12:50: the times in the message win over when it was sent.
+      const ownTime = rec.sentAt && (findTimes(part).length > 0 || lineStart !== undefined)
+      if (rowStart && !ownTime) {
         start = rowStart
         end = rowEnd
         // "till 10:20" written in a notes cell still ends the entry.
@@ -497,7 +501,12 @@ export function parseLog(input: Input, opts: ParseOptions): ParseResult {
 
   // Words worth asking about: from lines that read like log entries but weren't fully understood.
   const understood = new Set(drafts.map((d) => d.line))
-  const lines = recs.map((r) => ({ text: r.text, logLike: findTimes(r.text).length > 0 || Boolean(r.startText) || !understood.has(r.line) }))
+  // A long sentence with no times or numbers is diary prose, not shorthand: its words aren't asked about.
+  const terse = (t: string) => /\d/.test(t) || t.trim().split(/\s+/).length <= 5
+  const lines = recs.map((r) => ({
+    text: r.text,
+    logLike: findTimes(r.text).length > 0 || (r.startText ? !r.sentAt || terse(r.text) : false) || (!understood.has(r.line) && terse(r.text)),
+  }))
   const skip = new Set((opts.skipWords ?? []).flatMap((w) => w.toLowerCase().split(/\s+/)).filter(Boolean))
   const unknown = unknownTerms(lines, KNOWN, skip).filter((t) => !isKnownWord(t.term)).slice(0, 8)
 

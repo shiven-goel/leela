@@ -156,6 +156,21 @@ export type Database = {
         }
         Relationships: []
       }
+      audit_log: {
+        Row: {
+          id: number
+          at: string
+          family_id: string | null
+          actor: string | null
+          table_name: string
+          row_id: string
+          action: string
+          changes: Json
+        }
+        Insert: never
+        Update: never
+        Relationships: []
+      }
       imports: {
         Row: {
           counts: Json

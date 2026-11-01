@@ -1,0 +1,52 @@
+# Weekly encrypted backup of the whole database (the free plan has no downloadable backups).
+# Off until two repository secrets exist:
+#   SUPABASE_DB_URL     the "Session pooler" connection string from Supabase > Connect
+#   BACKUP_PASSPHRASE   a long passphrase; you need it to open a backup, so keep it safe
+# Backups are encrypted before upload, so they're safe even though this repository is public.
+name: Back up the database
+
+on:
+  schedule:
+    - cron: '41 3 * * 0'
+  workflow_dispatch:
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    env:
+      DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+      PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+    steps:
+      - name: Check the secrets are set
+        id: check
+        run: |
+          if [ -z "$DB_URL" ] || [ -z "$PASSPHRASE" ]; then
+            echo "ready=no" >> "$GITHUB_OUTPUT"
+            echo "::notice::Backups are off. Add SUPABASE_DB_URL and BACKUP_PASSPHRASE as repository secrets to turn them on."
+          else
+            echo "ready=yes" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Install the Postgres 17 client
+        if: steps.check.outputs.ready == 'yes'
+        run: |
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl -fsSo /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          . /etc/os-release
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt ${VERSION_CODENAME}-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client-17
+      - name: Dump and encrypt
+        if: steps.check.outputs.ready == 'yes'
+        run: |
+          stamp=$(date -u +%F)
+          echo "STAMP=$stamp" >> "$GITHUB_ENV"
+          /usr/lib/postgresql/17/bin/pg_dump "$DB_URL" --no-owner --no-privileges --schema=public --schema=auth --format=custom --file="leela-$stamp.dump"
+          gpg --batch --yes --pinentry-mode loopback --passphrase "$PASSPHRASE" --symmetric --cipher-algo AES256 -o "leela-$stamp.dump.gpg" "leela-$stamp.dump"
+          rm "leela-$stamp.dump"
+          ls -la
+      - uses: actions/upload-artifact@v4
+        if: steps.check.outputs.ready == 'yes'
+        with:
+          name: leela-backup-${{ env.STAMP }}
+          path: leela-*.dump.gpg
+          retention-days: 90

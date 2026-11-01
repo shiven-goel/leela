@@ -64,6 +64,8 @@ function draftFrom(edit: LeelaEvent | undefined, type: EventType, defaultAt: num
     data.head_cm = last.data.head_cm
   }
   if (type === 'potty') data.outcome = 'potty'
+  // The unit picker shows ml until changed, so that's what gets saved.
+  if (type === 'medicine') data.unit = 'ml'
   if (type === 'symptom') data.kind = 'symptom'
   return {
     start: new Date(type === 'sleep' ? at - 60 * MIN : at),
@@ -179,13 +181,17 @@ export function LogSheet({
     const notes = draft.notes.trim() ? draft.notes.trim() : null
 
     if (edit) {
-      await editEvent(edit.id, {
-        started_at: draft.start.toISOString(),
-        ended_at: edit.timer_state ? null : ended,
-        data,
-        notes,
-        photo_paths: draft.photos,
-      })
+      await editEvent(
+        edit.id,
+        {
+          started_at: draft.start.toISOString(),
+          ended_at: edit.timer_state ? null : ended,
+          data,
+          notes,
+          photo_paths: draft.photos,
+        },
+        { base: edit.updated_at },
+      )
       useLeela.getState().toast({ text: 'Changes saved.' })
     } else if (type === 'sleep' && draft.ongoing) {
       await startTimer('sleep', childId, { startedAt: draft.start.toISOString(), data })

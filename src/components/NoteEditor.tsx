@@ -7,7 +7,7 @@ import { eventDetail, eventTitle, noteBody } from '../lib/describe'
 import { learnWords } from '../lib/import/learn'
 import type { Draft } from '../lib/import/parse'
 import { MEANINGS, rankMeanings } from '../lib/import/vocab'
-import { clearNoteDraft, interpretNote, loadNoteDraft, logFromNote, saveNoteDraft } from '../lib/notes'
+import { askAbout, clearNoteDraft, interpretNote, loadNoteDraft, logFromNote, saveNoteDraft } from '../lib/notes'
 import { activeChild, myPrefs, useLeela } from '../lib/store'
 import { fmtShortDate, fmtTime } from '../lib/time'
 import type { LeelaEvent } from '../lib/types'
@@ -35,6 +35,7 @@ export function NoteEditor({ open, noteId, onClose }: { open: boolean; noteId?: 
   const [found, setFound] = useState<{ noteId: string; childId: string; body: string; at: Date } | null>(null)
   const area = useRef<HTMLTextAreaElement>(null)
   const initial = useRef('')
+  const openedVersion = useRef<string | undefined>(undefined)
 
   useEffect(() => {
     if (!open) return
@@ -53,6 +54,7 @@ export function NoteEditor({ open, noteId, onClose }: { open: boolean; noteId?: 
       setPhotos(draft?.photos ?? [])
     }
     setRestored(Boolean(draft && (draft.body || draft.title)))
+    openedVersion.current = existing?.updated_at
     initial.current = existing
       ? JSON.stringify([typeof existing.data.title === 'string' ? existing.data.title : '', noteBody(existing), existing.photo_paths])
       : JSON.stringify(['', '', []])
@@ -87,7 +89,7 @@ export function NoteEditor({ open, noteId, onClose }: { open: boolean; noteId?: 
     const data = { ...(existing?.data ?? {}), title: title.trim() || undefined, body: text }
     let id = noteId
     if (existing) {
-      await editEvent(existing.id, { started_at: at.toISOString(), data, photo_paths: photos, notes: null })
+      await editEvent(existing.id, { started_at: at.toISOString(), data, photo_paths: photos, notes: null }, { base: openedVersion.current })
     } else {
       const e = await logEvent({ type: 'note', childId: child.id, startedAt: at.toISOString(), data, photoPaths: photos }, { quiet: true })
       id = e.id
@@ -95,8 +97,9 @@ export function NoteEditor({ open, noteId, onClose }: { open: boolean; noteId?: 
     clearNoteDraft(noteId)
     toast({ text: 'Note saved.' })
     if (text.trim() && id) {
-      const { drafts } = interpretNote(text, at, child.id)
-      if (drafts.length) {
+      // Ask about shorthand Leela doesn't know yet, even when nothing else could be read.
+      const { drafts, result } = interpretNote(text, at, child.id)
+      if (drafts.length || result.unknown.some(askAbout)) {
         setFound({ noteId: id, childId: child.id, body: text, at })
         return
       }
@@ -187,7 +190,7 @@ export function NoteSuggestions({ noteId, childId, body, at, onDone }: { noteId:
   const prefs = myPrefs()
   const [{ drafts, unknown }, setState] = useState(() => {
     const r = interpretNote(body, at, childId)
-    return { drafts: r.drafts, unknown: r.result.unknown.slice(0, 3) }
+    return { drafts: r.drafts, unknown: r.result.unknown.filter(askAbout).slice(0, 3) }
   })
   const [asked, setAsked] = useState<Record<string, string>>({})
   const chosen = drafts.filter((d) => d.include).length
@@ -196,7 +199,7 @@ export function NoteSuggestions({ noteId, childId, body, at, onDone }: { noteId:
     setAsked((a) => ({ ...a, [term]: meaning }))
     await learnWords({ [term]: meaning })
     const r = interpretNote(body, at, childId)
-    setState({ drafts: r.drafts, unknown: r.result.unknown.filter((u) => !(u.term in asked) && u.term !== term).slice(0, 3) })
+    setState({ drafts: r.drafts, unknown: r.result.unknown.filter((u) => askAbout(u) && !(u.term in asked) && u.term !== term).slice(0, 3) })
   }
 
   const add = async () => {
@@ -209,7 +212,7 @@ export function NoteSuggestions({ noteId, childId, body, at, onDone }: { noteId:
     <Sheet
       open
       onClose={onDone}
-      title="Add these to the log?"
+      title={drafts.length ? 'Add these to the log?' : 'A quick question'}
       footer={
         <div className="grid grid-cols-2 gap-2">
           <Button variant="secondary" onClick={onDone}>
@@ -221,7 +224,11 @@ export function NoteSuggestions({ noteId, childId, body, at, onDone }: { noteId:
         </div>
       }
     >
-      <p className="mb-3 text-[15px] text-ink-2">Leela spotted these in your note. Untick anything that’s wrong.</p>
+      <p className="mb-3 text-[15px] text-ink-2">
+        {drafts.length
+          ? 'Leela spotted these in your note. Untick anything that’s wrong.'
+          : 'Your note uses a word Leela doesn’t know yet. Tell it once and it remembers, on every phone in the family.'}
+      </p>
       <ul className="mb-4 divide-y divide-line">
         {drafts.map((d) => {
           const e = draftEvent(d)
