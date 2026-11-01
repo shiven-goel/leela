@@ -194,7 +194,25 @@ export async function stopTimer(id: string, at: string = nowIso(), extra?: { dat
     if (extra.notes !== undefined) patch.notes = extra.notes
     await enqueue({ kind: 'update', table: 'events', rowId: id, patch })
   }
-  getState().toast({ text: `${TYPES[cur.type].label} saved.` })
+  // Ended by mistake? Undo carries the timer on as if it was never stopped (not for breastfeeding,
+  // whose sides are already tallied).
+  getState().toast({
+    text: `${TYPES[cur.type].label} saved.`,
+    action: cur.type === 'nursing' ? undefined : { label: 'Undo', run: () => void resumeTimer(id) },
+  })
+}
+
+/** Restarts a timer that was just stopped, keeping its original start. */
+export async function resumeTimer(id: string) {
+  const s = getState()
+  const cur = s.events[id]
+  if (!cur || cur.timer_state || cur.deleted_at || cur.type === 'nursing') return
+  if (runningTimer(cur.type, cur.child_id)) {
+    s.toast({ text: `Another ${TYPES[cur.type].label.toLowerCase()} timer is already running.` })
+    return
+  }
+  putLocal({ ...cur, ended_at: null, timer_state: 'running' })
+  await enqueue({ kind: 'update', table: 'events', rowId: id, patch: { ended_at: null, timer_state: 'running' } })
 }
 
 export async function nursingSwitch(id: string, side: Side) {
@@ -256,6 +274,16 @@ export async function saveChild(child: Partial<Child> & { name: string }): Promi
     rowId: row.id,
     row: { id: row.id, family_id: row.family_id, name: row.name, birth_date: row.birth_date, due_date: row.due_date, sex: row.sex },
   })
+}
+
+/** Changes one part of a baby's settings (shared with the family), keeping the rest. */
+export async function saveChildSettings(childId: string, key: string, value: unknown) {
+  const s = getState()
+  const child = s.children.find((c) => c.id === childId)
+  if (!child) return
+  const settings = { ...(child.settings ?? {}), [key]: value }
+  s.set({ children: s.children.map((c) => (c.id === childId ? { ...c, settings } : c)) })
+  await enqueue({ kind: 'update', table: 'children', rowId: childId, patch: { settings } })
 }
 
 export async function savePrefs(prefs: Prefs) {

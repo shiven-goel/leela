@@ -63,7 +63,7 @@ export function seed(variant: string) {
   // Local midnight in India for today.
   const offset = 5.5 * H
   const midnight = Math.floor((now + offset) / (24 * H)) * 24 * H - offset
-  for (let d = -3; d <= 0; d++) {
+  for (let d = -7; d <= 0; d++) {
     const day = midnight + d * 24 * H
     const by = (h: number) => (h % 2 ? 'u2' : 'u1')
     // night that started the previous evening

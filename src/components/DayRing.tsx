@@ -1,6 +1,5 @@
 import type { ReactNode } from 'react'
 import { eventEndMs } from '../lib/counting'
-import type { NapEstimate } from '../lib/nap'
 import { minuteOfDay } from '../lib/time'
 import type { Family, LeelaEvent } from '../lib/types'
 
@@ -45,7 +44,7 @@ export function DayRing({
   childId,
   family,
   now,
-  estimate,
+  windows,
   center,
   label,
 }: {
@@ -53,7 +52,8 @@ export function DayRing({
   childId: string
   family: Family
   now: number
-  estimate: NapEstimate | null
+  /** Sweet spot windows to show as dotted arcs in the hours ahead. */
+  windows: { start: number; end: number }[]
   center: ReactNode
   label: string
 }) {
@@ -89,10 +89,9 @@ export function DayRing({
   const nightA1 = ((toMin(family.night_start) - 720) / 1440) * 360
   const nightA2 = ((toMin(family.night_end) - 720) / 1440) * 360
   const futureEnd = angleOf(to, tz)
-  const est =
-    estimate && estimate.kind !== 'newborn' && estimate.end > now && estimate.start < to
-      ? arcPath(angleOf(Math.max(estimate.start, now), tz), angleOf(Math.min(estimate.end, to), tz), R)
-      : null
+  const ahead = windows
+    .filter((w) => w.end > now && w.start < to)
+    .map((w) => arcPath(angleOf(Math.max(w.start, now), tz), angleOf(Math.min(w.end, to), tz), R))
 
   const sun = point(0, R + 31)
   const moon = point(180, R + 31)
@@ -111,17 +110,9 @@ export function DayRing({
         {sleeps.map((s) => (
           <path key={s.key} d={s.d} fill="none" stroke="var(--sleep)" strokeWidth={20} strokeLinecap="round" />
         ))}
-        {est && (
-          <path
-            d={est}
-            fill="none"
-            stroke="var(--sleep)"
-            strokeWidth={20}
-            strokeLinecap="round"
-            strokeDasharray="2 9"
-            opacity={0.85}
-          />
-        )}
+        {ahead.map((d) => (
+          <path key={d} d={d} fill="none" stroke="var(--sleep)" strokeWidth={20} strokeLinecap="round" strokeDasharray="2 9" opacity={0.85} />
+        ))}
 
         {feeds.map((f) => (
           <circle key={f.key} cx={f.x} cy={f.y} r={5.5} fill="var(--feed)" />

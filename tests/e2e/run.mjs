@@ -158,6 +158,11 @@ async function tile(p, name) {
   await noDialogs(p)
   await p.page.getByRole('button', { name: new RegExp(`^${name}\\b`) }).click()
 }
+/** Sleep needs two taps: the Sleep button opens a screen, and only its Start button starts the timer. */
+async function startSleep(p) {
+  await tile(p, 'Sleep')
+  await p.page.getByRole('dialog', { name: 'Sleep' }).getByRole('button', { name: 'Start sleep', exact: true }).click()
+}
 async function more(p, label) {
   await tile(p, 'More Health')
   await p.page.getByRole('dialog', { name: 'Log something' }).getByRole('button', { name: label, exact: true }).click()
@@ -379,10 +384,26 @@ async function full() {
     { needs: ['A5'] },
   )
   await check(
+    'L26',
+    'Tapping Sleep by mistake starts nothing: the timer needs its own Start button',
+    async () => {
+      await tile(mom, 'Sleep')
+      const sheet = mom.page.getByRole('dialog', { name: 'Sleep' })
+      await sheet.getByRole('button', { name: 'Start sleep', exact: true }).waitFor()
+      await sheet.getByRole('button', { name: 'Close' }).click()
+      await noDialogs(mom)
+      await mom.page.waitForTimeout(2500)
+      const a = await mom.page.getByRole('region', { name: /^Asleep/ }).count()
+      const b = await dad.page.getByRole('region', { name: /^Asleep/ }).count()
+      assert(a === 0 && b === 0, `a timer started anyway (Mom sees ${a}, Dad sees ${b})`)
+    },
+    { needs: ['A5'] },
+  )
+  await check(
     'L2',
     'A sleep timer started on one phone runs on the other',
     async () => {
-      await tile(mom, 'Sleep')
+      await startSleep(mom)
       return timed('live', () => dad.page.getByRole('region', { name: /^Asleep/ }).waitFor({ timeout: 12_000 }))
     },
     { needs: ['A5'] },
@@ -403,8 +424,12 @@ async function full() {
     'L4',
     'Both parents pressing Sleep at the same moment leaves exactly one timer',
     async () => {
-      await Promise.all([noDialogs(mom), noDialogs(dad)])
-      await Promise.all([mom.page.getByRole('button', { name: /^Sleep\b/ }).click(), dad.page.getByRole('button', { name: /^Sleep\b/ }).click()])
+      await Promise.all([tile(mom, 'Sleep'), tile(dad, 'Sleep')])
+      // Whoever is second may already see the other's timer on their screen: either way, one timer.
+      const start = (p) => p.page.getByRole('dialog', { name: 'Sleep' }).getByRole('button', { name: 'Start sleep', exact: true }).click({ timeout: 3000 }).catch(() => {})
+      await Promise.all([start(mom), start(dad)])
+      await mom.page.keyboard.press('Escape')
+      await dad.page.keyboard.press('Escape')
       await mom.page.waitForTimeout(6000)
       const a = await mom.page.getByRole('region', { name: /^Asleep/ }).count()
       const b = await dad.page.getByRole('region', { name: /^Asleep/ }).count()
@@ -413,6 +438,23 @@ async function full() {
       await dad.page.getByRole('region', { name: /^Asleep/ }).waitFor({ state: 'detached', timeout: 12_000 })
     },
     { needs: ['L3'] },
+  )
+  await check(
+    'L27',
+    'Ending a sleep by mistake can be undone, and the other phone follows',
+    async () => {
+      await startSleep(mom)
+      await dad.page.getByRole('region', { name: /^Asleep/ }).waitFor({ timeout: 12_000 })
+      await tile(mom, 'Wake up')
+      await mom.page.getByRole('dialog', { name: 'Sleep' }).getByRole('button', { name: 'End sleep', exact: true }).click()
+      await dad.page.getByRole('region', { name: /^Asleep/ }).waitFor({ state: 'detached', timeout: 4000 })
+      await mom.page.getByRole('button', { name: 'Undo' }).click()
+      await dad.page.getByRole('region', { name: /^Asleep/ }).waitFor({ timeout: 12_000 })
+      await mom.page.getByRole('region', { name: /^Asleep/ }).waitFor({ timeout: 5000 })
+      await mom.page.getByRole('button', { name: 'Stop asleep' }).click()
+      await dad.page.getByRole('region', { name: /^Asleep/ }).waitFor({ state: 'detached', timeout: 12_000 })
+    },
+    { needs: ['L4'] },
   )
   await check(
     'L5',
@@ -1099,6 +1141,76 @@ async function full() {
     await dad.page.getByRole('button', { name: 'Ravi Kumar', exact: true }).waitFor({ timeout: 15_000 })
     await tab(mom, 'Today')
   }, { needs: ['F1'] })
+
+  // ---------------------------------------------------------------- sweet spot
+  // A third baby with a steady week of sleep, logged through the API, and Mom on a phone whose clock
+  // is set to 11 am on the latest day, so the predictions can be checked against known times.
+  const T = (() => {
+    const today11 = Date.parse(`${dayIso(0)}T11:00:00+05:30`)
+    return today11 <= Date.now() ? today11 : today11 - 86_400_000
+  })()
+  const isoAt = (daysBefore, hhmm) => new Date(`${new Date(T - daysBefore * 86_400_000).toLocaleDateString('en-CA', { timeZone: TZ })}T${hhmm}:00+05:30`).toISOString()
+  /** Minutes after midnight of "12:25" + "PM". */
+  const minuteOf = (h, m, ap) => ((Number(h) % 12) + (ap === 'PM' ? 12 : 0)) * 60 + Number(m)
+  const clockPhone = await phone('mom-clock')
+  await check('P1', 'Sweet spot predicts the next nap, the rest of the day and bedtime from the baby’s own week', async () => {
+    const mira = crypto.randomUUID()
+    const birth = new Date(T - 184 * 86_400_000).toLocaleDateString('en-CA', { timeZone: TZ })
+    const { error: kidErr } = await momApi.from('children').insert({ id: mira, family_id: familyId, name: 'Mira', birth_date: birth })
+    assert(!kidErr, `adding Mira: ${kidErr?.message}`)
+    // Up at 7, naps at 9:10, 12:40 and 4:10, in bed at 7:15, every day for eight days; today so far: up at 7, one nap.
+    const week = []
+    const add = (start, end) => week.push({ id: crypto.randomUUID(), family_id: familyId, child_id: mira, type: 'sleep', started_at: start, ended_at: end, data: {} })
+    for (let d = 8; d >= 1; d--) {
+      add(isoAt(d + 1, '19:15'), isoAt(d, '07:00'))
+      add(isoAt(d, '09:10'), isoAt(d, '10:10'))
+      add(isoAt(d, '12:40'), isoAt(d, '13:40'))
+      add(isoAt(d, '16:10'), isoAt(d, '16:50'))
+    }
+    add(isoAt(1, '19:15'), isoAt(0, '07:00'))
+    add(isoAt(0, '09:10'), isoAt(0, '10:10'))
+    const { error } = await momApi.from('events').insert(week)
+    assert(!error, `logging Mira’s week: ${error?.message}`)
+
+    await clockPhone.page.clock.setFixedTime(new Date(T))
+    await signIn(clockPhone, email('mom'))
+    await clockPhone.page.getByRole('button', { name: 'Mira', exact: true }).click({ timeout: 30_000 })
+    const card = clockPhone.page.getByRole('region', { name: 'Sweet spot' })
+    await waitFor(async () => /Next nap/.test(await card.textContent()), 20_000)
+    const text = (await card.textContent()).replace(/\s+/g, ' ')
+    const w = /(\d{1,2}):(\d{2})(?: (AM|PM))? – (\d{1,2}):(\d{2}) (AM|PM)/.exec(text)
+    assert(w, `no nap window on the card: ${text}`)
+    const from = minuteOf(w[1], w[2], w[3] ?? w[6])
+    const to = minuteOf(w[4], w[5], w[6])
+    const mid = (from + to) / 2
+    assert(mid >= 12 * 60 + 25 && mid <= 12 * 60 + 55 && to - from >= 15 && to - from <= 45, `next nap window ${w[0]}, expected around 12:40 PM: ${text}`)
+    const nap3 = /nap 3 ~(\d{1,2}):(\d{2}) (AM|PM)/.exec(text)
+    assert(nap3 && Math.abs(minuteOf(nap3[1], nap3[2], nap3[3]) - (16 * 60 + 10)) <= 20, `third nap: ${nap3?.[0]}, expected around 4:10 PM`)
+    const bed = /bed ~(\d{1,2}):(\d{2}) (AM|PM)/.exec(text)
+    assert(bed && Math.abs(minuteOf(bed[1], bed[2], bed[3]) - (19 * 60 + 15)) <= 20, `bedtime: ${bed?.[0]}, expected around 7:15 PM`)
+    assert(text.includes('Based on Mira’s last 7 days'), `not learned from Mira’s week: ${text}`)
+    return `next nap ${w[0]}, ${nap3[0]}, ${bed[0]}`
+  }, { needs: ['A5'], shot: true })
+  await check('P2', 'Sweet spot settings are shared: 2 naps a day set on one phone shows on the other', async () => {
+    const sheet = clockPhone.page.getByRole('dialog', { name: 'Sweet spot' })
+    await clockPhone.page.getByRole('button', { name: /Open Sweet spot$/ }).click()
+    await sheet.getByRole('radio', { name: '2', exact: true }).click()
+    await sheet.getByRole('button', { name: 'Close' }).click()
+    // With two naps a day, the rest of the day is one more nap and then bed.
+    await waitFor(async () => !/nap 3/.test(await clockPhone.page.getByRole('region', { name: 'Sweet spot' }).textContent()), 10_000)
+    await tab(dad, 'Today')
+    await dad.page.getByRole('button', { name: 'Mira', exact: true }).click({ timeout: 20_000 })
+    await waitFor(async () => {
+      await noDialogs(dad)
+      await dad.page.getByRole('button', { name: /Open Sweet spot$/ }).click()
+      const d = dad.page.getByRole('dialog', { name: 'Sweet spot' })
+      const on = await d.getByRole('radio', { name: '2', exact: true }).getAttribute('aria-checked')
+      await d.getByRole('button', { name: 'Close' }).click()
+      return on === 'true'
+    }, 20_000, 1000)
+    await noDialogs(dad)
+    await dad.page.getByRole('button', { name: 'Asha', exact: true }).click()
+  }, { needs: ['P1'] })
 
   // ---------------------------------------------------------------- security
   await check('S1', 'A stranger with a family of their own sees none of ours', async () => {

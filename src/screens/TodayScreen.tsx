@@ -5,15 +5,16 @@ import { DayRing } from '../components/DayRing'
 import { BottleIcon, DiaperIcon, TypeIcon } from '../components/Icon'
 import { LogSheet } from '../components/LogSheet'
 import { MoreSheet } from '../components/MoreSheet'
+import { SleepSheet } from '../components/SleepSheet'
+import { SweetSpotCard, SweetSpotSheet } from '../components/SweetSpot'
 import { TimerCard } from '../components/TimerCard'
 import { Timeline } from '../components/Timeline'
 import { ChildSheet } from '../components/ChildSheet'
 import { useNow } from '../hooks/useNow'
-import { startTimer, stopTimer } from '../lib/actions'
 import { TYPES } from '../lib/config'
 import { lastOf, sleepState, totalsFor } from '../lib/counting'
 import { eventDetail, eventTitle } from '../lib/describe'
-import { estimateNextSleep } from '../lib/nap'
+import { phase, sweetSpot } from '../lib/sweetspot'
 import { activeChild, displayName, myPrefs, useLeela } from '../lib/store'
 import { ageText, agoText, dayStart, durationText, fmtTime } from '../lib/time'
 import type { EventType, LeelaEvent } from '../lib/types'
@@ -34,15 +35,18 @@ export function TodayScreen() {
   const [sheet, setSheet] = useState<{ type: EventType; group?: EventType[]; edit?: LeelaEvent } | null>(null)
   const [more, setMore] = useState(false)
   const [addChild, setAddChild] = useState(false)
+  const [sleepOpen, setSleepOpen] = useState(false)
+  const [spotOpen, setSpotOpen] = useState(false)
 
   const events = useMemo(() => Object.values(eventsMap).filter((e) => !e.deleted_at), [eventsMap])
   const segs = useMemo(() => Object.values(segments), [segments])
+  const spot = useMemo(() => (child ? sweetSpot(events, child, family, now) : null), [events, child, family, now])
 
   const running = events
     .filter((e) => e.timer_state && (e.child_id === child?.id || (TYPES[e.type].familyLevel && e.created_by === userId)))
     .sort((a, b) => a.started_at.localeCompare(b.started_at))
 
-  if (!child) {
+  if (!child || !spot) {
     return (
       <div className="px-5 pt-6">
         <div className="rounded-[28px] bg-card p-6 text-center shadow-lift">
@@ -63,13 +67,28 @@ export function TodayScreen() {
     .sort((a, b) => b.started_at.localeCompare(a.started_at))
   const totals = totalsFor(events, segs, child.id, today0, now + 1, family, now)
   const state = sleepState(events, child.id, now)
-  const estimate = estimateNextSleep(events, child, family, now)
   const lastFeed = lastOf(events, child.id, ['nursing', 'bottle', 'solids'])
   const lastDiaper = lastOf(events, child.id, ['diaper'])
   const lastTemp = lastOf(events, child.id, ['temperature'])
   const fever = lastTemp && (lastTemp.data.temp_c ?? 0) >= FEVER_C && now - Date.parse(lastTemp.started_at) < 12 * 3_600_000
 
   const runningSleep = running.find((e) => e.type === 'sleep')
+  const next = spot.next
+  const ringLine =
+    state.asleep && state.since
+      ? `since ${fmtTime(state.since, tz)}`
+      : spot.status === 'ok' && next
+        ? phase(next, now) === 'soon'
+          ? `${next.kind === 'bedtime' ? 'Bedtime' : 'Next nap'} ~${fmtTime(next.center, tz)}`
+          : phase(next, now) === 'now'
+            ? 'In the sweet spot now'
+            : 'A little past the sweet spot'
+        : spot.status === 'newborn' && next
+          ? `Sleepy again by ${fmtTime(next.end, tz)}`
+          : state.since
+            ? `since ${fmtTime(state.since, tz)}`
+            : 'Log a sleep to begin'
+  const ahead = spot.status === 'ok' || spot.status === 'napping' || spot.status === 'newborn' ? [...(next ? [next] : []), ...spot.later] : []
 
   const center = (
     <>
@@ -79,21 +98,7 @@ export function TodayScreen() {
       <span className="num text-[44px] font-extrabold leading-[0.9]">
         {state.since ? durationText(now - state.since) : '–'}
       </span>
-      <span className="mt-1.5 max-w-[150px] text-[13px] leading-snug text-ink-2">
-        {state.asleep && state.since
-          ? `since ${fmtTime(state.since, tz)}`
-          : estimate && estimate.kind === 'newborn'
-            ? `Newborns are usually awake ${estimate.range.minMin}–${estimate.range.maxMin} min`
-            : estimate
-              ? now > estimate.end
-                ? `Past ${estimate.kind === 'bedtime' ? 'bedtime' : 'nap'} time, ready when they are`
-                : now >= estimate.start
-                  ? `${estimate.kind === 'bedtime' ? 'Bedtime' : 'Nap'} window is now`
-                  : `${estimate.kind === 'bedtime' ? 'Bedtime' : 'Next nap'} around ${fmtTime((estimate.start + estimate.end) / 2, tz)}`
-              : state.since
-                ? `since ${fmtTime(state.since, tz)}`
-                : 'Log a sleep to begin'}
-      </span>
+      <span className="mt-1.5 max-w-[150px] text-[13px] leading-snug text-ink-2">{ringLine}</span>
     </>
   )
 
@@ -103,17 +108,16 @@ export function TodayScreen() {
     {
       id: 'sleep',
       label: runningSleep ? 'Wake up' : 'Sleep',
-      sub: runningSleep ? 'Stop the sleep timer' : state.since && !state.asleep ? `Woke ${agoText(state.since, now)}` : 'Start a timer',
+      sub: runningSleep
+        ? `Asleep ${durationText(now - Date.parse(runningSleep.started_at))}, tap to end`
+        : state.since && !state.asleep
+          ? `Woke ${agoText(state.since, now)}`
+          : 'Start or add a sleep',
       tone: 'sleep',
       icon: <TypeIcon type="sleep" size={30} />,
       active: Boolean(runningSleep),
-      onClick: () => {
-        if (runningSleep) void stopTimer(runningSleep.id)
-        else
-          void startTimer('sleep', child.id).then(() =>
-            useLeela.getState().toast({ text: `Sleep timer started for ${child.name}.` }),
-          )
-      },
+      // Opens the sleep screen; nothing starts or stops until its button is pressed.
+      onClick: () => setSleepOpen(true),
     },
     {
       id: 'feed',
@@ -161,15 +165,17 @@ export function TodayScreen() {
         </div>
       )}
 
-      <DayRing events={events} childId={child.id} family={family} now={now} estimate={estimate} center={center} label={ringLabel} />
+      <DayRing events={events} childId={child.id} family={family} now={now} windows={ahead} center={center} label={ringLabel} />
 
       {running.length > 0 && (
         <div className="mt-2 flex flex-col gap-3">
           {running.map((e) => (
-            <TimerCard key={e.id} event={e} onOpen={(ev) => setSheet({ type: ev.type, edit: ev })} />
+            <TimerCard key={e.id} event={e} onOpen={(ev) => (ev.type === 'sleep' ? setSleepOpen(true) : setSheet({ type: ev.type, edit: ev }))} />
           ))}
         </div>
       )}
+
+      <SweetSpotCard spot={spot} child={child} now={now} tz={tz} onOpen={() => setSpotOpen(true)} onLogSleep={() => setSheet({ type: 'sleep' })} />
 
       <div className="mt-4 grid grid-cols-2 gap-3">
         {tiles.map((t) => (
@@ -231,6 +237,22 @@ export function TodayScreen() {
           else setSheet({ type: t })
         }}
       />
+      <SleepSheet
+        open={sleepOpen}
+        onClose={() => setSleepOpen(false)}
+        child={child}
+        running={runningSleep}
+        spot={spot}
+        onPastSleep={() => {
+          setSleepOpen(false)
+          setSheet({ type: 'sleep' })
+        }}
+        onEdit={(e) => {
+          setSleepOpen(false)
+          setSheet({ type: 'sleep', edit: e })
+        }}
+      />
+      <SweetSpotSheet open={spotOpen} onClose={() => setSpotOpen(false)} spot={spot} child={child} now={now} tz={tz} />
       {sheet && (
         <LogSheet
           key={sheet.edit?.id ?? sheet.type}

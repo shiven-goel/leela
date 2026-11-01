@@ -23,6 +23,10 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - name: Unit tests (Sweet spot predictions, duplicate spotting)
+        run: |
+          npx tsx tests/sweetspot.test.ts
+          npx tsx tests/duplicates.test.ts
       # The app lives at the root of a custom domain (repository variable LEELA_DOMAIN, e.g.
       # leelababy.in) or of an <owner>.github.io repository; otherwise at <owner>.github.io/<repo>/.
       - run: npm run build
