@@ -1488,9 +1488,11 @@ async function pushInbox() {
 
   async function connect() {
     const tries = []
+    // The service doesn't echo the push-notification subprotocol back, which WebSocket clients
+    // outside Firefox treat as an error, so connect without it.
     for (const [name, make] of [
-      ['ws + Firefox UA', () => new NodeWs(url, 'push-notification', { headers: { 'User-Agent': ua } })],
-      ['Node WebSocket', () => new WebSocket(url, 'push-notification')],
+      ['ws', () => new NodeWs(url, { headers: { 'User-Agent': ua } })],
+      ['Node WebSocket', () => new WebSocket(url)],
     ]) {
       try {
         ws = await open(make)
