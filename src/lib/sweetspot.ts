@@ -7,7 +7,7 @@
 // the family shows the same answer.
 
 import { sleepKind } from './counting'
-import { addDaysTz, atLocalTime, dayKey, minuteOfDay } from './time'
+import { addDaysTz, atLocalTime, minuteOfDay } from './time'
 import type { Child, Family, LeelaEvent } from './types'
 
 const MIN = 60_000
@@ -187,6 +187,13 @@ const toMin = (hhmm: string) => {
 }
 const clamp = (n: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, n))
 const round5 = (t: number) => Math.round(t / (5 * MIN)) * 5 * MIN
+/** The local date, "2026-11-01", without pulling in date formatting (this file also runs on the server). */
+const dayFormats = new Map<string, Intl.DateTimeFormat>()
+function dayKey(t: number, tz: string): string {
+  let f = dayFormats.get(tz)
+  if (!f) dayFormats.set(tz, (f = new Intl.DateTimeFormat('en-CA', { year: 'numeric', month: '2-digit', day: '2-digit', timeZone: tz })))
+  return f.format(t)
+}
 
 function inWindow(m: number, startMin: number, endMin: number) {
   return startMin > endMin ? m >= startMin || m < endMin : m >= startMin && m < endMin

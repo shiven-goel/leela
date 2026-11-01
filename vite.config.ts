@@ -32,6 +32,8 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
+        // Shows Sweet spot reminders and opens Leela when one is tapped (public/push-sw.js).
+        importScripts: ['push-sw.js'],
         navigateFallback: `${base}index.html`,
         // Never cache API traffic; the app keeps its own offline copy.
         navigateFallbackDenylist: [/^\/rest\//, /^\/auth\//],

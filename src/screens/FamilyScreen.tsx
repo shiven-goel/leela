@@ -8,6 +8,7 @@ import { rpc, saveDisplayName, saveFamilySettings, savePrefs } from '../lib/acti
 import { MAX_FAMILY_MEMBERS } from '../lib/config'
 import { myPrefs, useLeela } from '../lib/store'
 import { supabase } from '../lib/supabase'
+import { disableReminders } from '../lib/push'
 import { bootstrap, refresh, teardown } from '../lib/sync'
 import { getThemeMode, setThemeMode, type ThemeMode } from '../lib/theme'
 import { forgetWord } from '../lib/import/learn'
@@ -83,6 +84,8 @@ export function FamilyScreen() {
 
   const leave = async () => {
     setBusy(true)
+    // Reminders belong to the family being left.
+    await disableReminders('left the family')
     const res = await rpc('leave_family', { p_confirm: lastOne ? confirmText.trim().toUpperCase() : null })
     setBusy(false)
     if (!res.ok) {
@@ -323,8 +326,10 @@ export function FamilyScreen() {
             variant="secondary"
             size="md"
             onClick={() => {
-              teardown()
-              void supabase.auth.signOut().then(() => bootstrap())
+              void disableReminders('signed out').finally(() => {
+                teardown()
+                void supabase.auth.signOut().then(() => bootstrap())
+              })
             }}
           >
             Sign out

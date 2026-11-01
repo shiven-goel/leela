@@ -49,6 +49,57 @@ export type Database = {
         }
         Relationships: []
       }
+      push_subscriptions: {
+        Row: {
+          app_url: string | null
+          auth: string
+          created_at: string
+          disabled_at: string | null
+          disabled_reason: string | null
+          endpoint: string
+          family_id: string
+          id: string
+          last_sent_at: string | null
+          lead_min: number
+          p256dh: string
+          updated_at: string
+          user_agent: string | null
+          user_id: string
+        }
+        Insert: {
+          app_url?: string | null
+          auth: string
+          created_at?: string
+          disabled_at?: string | null
+          disabled_reason?: string | null
+          endpoint: string
+          family_id: string
+          id?: string
+          last_sent_at?: string | null
+          lead_min?: number
+          p256dh: string
+          updated_at?: string
+          user_agent?: string | null
+          user_id?: string
+        }
+        Update: {
+          app_url?: string | null
+          auth?: string
+          created_at?: string
+          disabled_at?: string | null
+          disabled_reason?: string | null
+          endpoint?: string
+          family_id?: string
+          id?: string
+          last_sent_at?: string | null
+          lead_min?: number
+          p256dh?: string
+          updated_at?: string
+          user_agent?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       events: {
         Row: {
           child_id: string | null

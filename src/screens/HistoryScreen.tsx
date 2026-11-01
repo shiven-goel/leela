@@ -4,6 +4,10 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { LogSheet } from '../components/LogSheet'
 import { MoreSheet } from '../components/MoreSheet'
 import { Timeline } from '../components/Timeline'
+import { DayStrip } from '../components/charts/DayStrip'
+import { marksBetween } from '../lib/charts'
+import { HistoryTrends } from './HistoryTrends'
+import { HistoryWeek } from './HistoryWeek'
 import { useNow } from '../hooks/useNow'
 import { TYPES } from '../lib/config'
 import { totalsFor } from '../lib/counting'
@@ -22,6 +26,8 @@ export function HistoryScreen() {
   const child = activeChild()
   const tz = family.timezone
   const [day, setDay] = useState(() => dayStart(Date.now(), tz).getTime())
+  const view = useLeela((s) => s.historyView)
+  const setView = (v: 'day' | 'week' | 'trends') => useLeela.getState().set({ historyView: v })
   const [more, setMore] = useState(false)
   const [sheet, setSheet] = useState<{ type: EventType; edit?: LeelaEvent; group?: EventType[] } | null>(null)
   const picker = useRef<HTMLInputElement>(null)
@@ -66,7 +72,13 @@ export function HistoryScreen() {
       <header className="safe-top flex items-start justify-between gap-3 pb-3">
         <div className="min-w-0">
           <h1 className="font-display text-[30px] font-extrabold leading-tight">History</h1>
-          <p className="text-[15px] text-ink-2">{child.name}, day by day. Tap any day to add something you forgot.</p>
+          <p className="text-[15px] text-ink-2">
+            {view === 'day'
+              ? `${child.name}, day by day. Tap any day to add something you forgot.`
+              : view === 'week'
+                ? `${child.name}’s week at a glance. Tap a day to open it.`
+                : `How ${child.name}’s days are changing.`}
+          </p>
         </div>
         <button
           type="button"
@@ -77,6 +89,40 @@ export function HistoryScreen() {
         </button>
       </header>
 
+      <div className="mb-4 grid grid-cols-3 gap-1 rounded-2xl bg-card p-1 ring-1 ring-line" role="tablist" aria-label="History view">
+        {(
+          [
+            ['day', 'Day'],
+            ['week', 'Week'],
+            ['trends', 'Trends'],
+          ] as const
+        ).map(([id, name]) => (
+          <button
+            key={id}
+            type="button"
+            role="tab"
+            aria-selected={view === id}
+            onClick={() => setView(id)}
+            className={clsx('h-10 rounded-xl text-[15px] font-semibold', view === id ? 'bg-brand text-brand-ink' : 'text-ink-2')}
+          >
+            {name}
+          </button>
+        ))}
+      </div>
+
+      {view === 'week' && (
+        <HistoryWeek
+          child={child}
+          onPickDay={(d) => {
+            setDay(d)
+            setView('day')
+          }}
+        />
+      )}
+      {view === 'trends' && <HistoryTrends child={child} />}
+
+      {view === 'day' && (
+        <>
       <div className="no-scrollbar -mx-5 flex gap-2 overflow-x-auto px-5 pb-2" role="tablist" aria-label="Choose a day">
         {days.map((d) => {
           const on = d === day
@@ -130,6 +176,14 @@ export function HistoryScreen() {
           </button>
         </div>
 
+        <DayStrip
+          marks={marksBetween(events, Object.values(segments), child.id, userId, family, day, dayEnd, now)}
+          from={day}
+          to={dayEnd}
+          family={family}
+          now={now}
+          label={`${label}: ${durationText(totals.sleepMs)} of sleep, ${totals.feeds} feeds and ${totals.diapers} diapers, drawn from midnight to midnight.`}
+        />
         <dl className="mb-5 grid grid-cols-2 gap-2">
           <Summary tone="sleep" label="Sleep" value={durationText(totals.sleepMs)} sub={`${totals.naps} ${totals.naps === 1 ? 'nap' : 'naps'}, longest ${durationText(totals.longestSleepMs)}`} />
           <Summary
@@ -150,6 +204,8 @@ export function HistoryScreen() {
           <Timeline events={list} now={now} onSelect={(e) => (e.type === 'note' ? useLeela.getState().set({ overlay: { kind: 'note', id: e.id } }) : setSheet({ type: e.type, edit: e }))} empty={`Nothing logged for ${label.toLowerCase()}. Forgot something? Add it here.`} />
         )}
       </section>
+        </>
+      )}
 
       <MoreSheet
         open={more}

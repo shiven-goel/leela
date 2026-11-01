@@ -33,6 +33,15 @@
 
   --ring-day: #fff3cf;
   --ring-night: #e3e6f8;
+  /* Chart colours, checked for colour-blind separation on the card surface (see src/lib/charts.ts). */
+  --c-night: #5847dd;
+  --c-nap: #a99ff0;
+  --c-feed: #e0920a;
+  --c-feed-2: #f3c56e;
+  --c-diaper: #0d9781;
+  --c-other: #9ba0bb;
+  --c-growth: #2b8650;
+  --c-health: #dd4630;
   --shadow-lift: 0 1px 0 rgba(27, 31, 59, 0.04), 0 8px 24px -12px rgba(27, 31, 59, 0.18);
 }
 
@@ -62,6 +71,14 @@
 
   --ring-day: #1c1e33;
   --ring-night: #151a3a;
+  --c-night: #8076e6;
+  --c-nap: #5b54ad;
+  --c-feed: #bd862c;
+  --c-feed-2: #7d5d24;
+  --c-diaper: #2fa38f;
+  --c-other: #6f7290;
+  --c-growth: #4ea36f;
+  --c-health: #dd6a55;
   --shadow-lift: 0 0 0 1px rgba(241, 217, 166, 0.04);
 }
 

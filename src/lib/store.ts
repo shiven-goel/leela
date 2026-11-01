@@ -38,6 +38,8 @@ export interface LeelaState {
   catchUpSince: string | null
   catchUpDismissed: boolean
   tab: Tab
+  /** Which History view is showing: a day, the week chart or trends. */
+  historyView: 'day' | 'week' | 'trends'
   toasts: Toast[]
   conflict: Conflict | null
   removedNotice: boolean
@@ -76,6 +78,7 @@ const initial = {
   catchUpSince: null,
   catchUpDismissed: false,
   tab: 'today' as Tab,
+  historyView: 'day' as 'day' | 'week' | 'trends',
   toasts: [],
   conflict: null,
   removedNotice: false,

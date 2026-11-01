@@ -87,6 +87,19 @@ export function seed(variant: string) {
     add('activity', day + 10.2 * H, day + 10.45 * H, { kind: 'tummy' }, 'u2')
   }
   add('pump', midnight + 7.5 * H, midnight + 7.9 * H, { left_ml: 70, right_ml: 60 }, 'u1')
+  // Growth since birth, a daily vitamin and a couple of temperatures, for the charts.
+  const bornAt = Date.parse(`${birth}T10:00:00+05:30`)
+  ;[
+    [0, 3.15, 49.5, 34.0],
+    [14, 3.6, 51.5, 35.4],
+    [33, 4.4, 54.6, 37.0],
+    [61, 5.3, 57.9, 38.6],
+    [92, 6.0, 60.7, 40.0],
+  ].forEach(([d, kg, len, head], i) => add('growth', bornAt + d * 24 * H, null, { weight_kg: kg, length_cm: len, head_cm: head }, i % 2 ? 'u2' : 'u1'))
+  for (let d = -13; d <= 0; d++) add('medicine', midnight + d * 24 * H + 9.2 * H, null, { name: 'Vitamin D', dose: '1', unit: 'ml' }, 'u1')
+  add('temperature', midnight - 4 * 24 * H + 19 * H, null, { temp_c: 38.3, method: 'armpit' }, 'u1')
+  add('temperature', midnight - 4 * 24 * H + 23 * H, null, { temp_c: 37.6, method: 'armpit' }, 'u2')
+  add('medicine', midnight - 4 * 24 * H + 19.2 * H, null, { name: 'Calpol', dose: '2.5', unit: 'ml' }, 'u1')
   add('temperature', midnight - 20 * H, null, { temp_c: 37.1, method: 'armpit' }, 'u2')
   add('milestone', midnight - 40 * H, null, { kind: 'laugh' }, 'u1', { notes: 'Giggled at the ceiling fan for a full minute.' })
   add('note', midnight - 60 * H, null, {}, 'u2', { notes: 'First visit to Nani’s house. Slept through the whole car ride.' })

@@ -2,6 +2,7 @@ import clsx from 'clsx'
 import { ArrowCounterClockwise, Bed, CaretRight, MoonStars, Sparkle, SunHorizon } from '@phosphor-icons/react'
 import { useEffect, useRef, useState } from 'react'
 import { saveChildSettings } from '../lib/actions'
+import { disableReminders, enableReminders, localReminder, pushSupport, savedReminder, sendTestReminder, setReminderLead } from '../lib/push'
 import { phase, readSettings, type SleepWindow, type SweetSpot, type SweetSpotSettings } from '../lib/sweetspot'
 import { basisText, fmtRange, minutesText, rangeText, sleepName, spanText } from '../lib/sweetspotText'
 import { durationText, fmtTime } from '../lib/time'
@@ -153,7 +154,10 @@ export function SweetSpotCard({
             )}
           </div>
         )}
-        <p className={clsx('mt-2 text-[13px]', filled ? 'text-white/80' : 'text-ink-3')}>{basisText(spot, name)}</p>
+        <p className={clsx('mt-2 text-[13px]', filled ? 'text-white/80' : 'text-ink-3')}>
+          {basisText(spot, name)}
+          {localReminder() !== null && ` · reminder ${localReminder()} min before`}
+        </p>
       </button>
     </section>
   )
@@ -264,6 +268,8 @@ export function SweetSpotSheet({ open, onClose, spot, child, now, tz }: { open: 
           Daytime sleep so far: <strong className="font-semibold text-ink">{durationText(spot.daySleepMs)}</strong>. Usual at {g.label}: {hours(g.daySleep[0])}–{hours(g.daySleep[1])} hours.
         </p>
       )}
+
+      <Reminders name={name} />
 
       {/* ------------------------------------------------ how it works */}
       <h3 className="mb-2 text-[15px] font-semibold text-ink-2">How it works</h3>
@@ -414,5 +420,89 @@ function Fact({ label, value }: { label: string; value: string }) {
       <dt className="text-[13px] text-ink-2">{label}</dt>
       <dd className="num text-[18px] font-bold">{value}</dd>
     </div>
+  )
+}
+
+// ---------------------------------------------------------------------------- reminders
+const SUPPORT_TEXT = {
+  'ios-install': 'On iPhone and iPad, notifications work once Leela is on your Home Screen: tap Share, then Add to Home Screen, and open Leela from there.',
+  unsupported: 'This browser can’t show notifications. Chrome, Edge, Firefox or Leela on an iPhone Home Screen can.',
+  denied: 'Notifications are blocked for Leela. Allow them in the browser’s site settings (or the phone’s Settings › Notifications), then choose a time again.',
+} as const
+
+/** Per person, per phone: a notification some minutes before each nap and bedtime sweet spot. */
+function Reminders({ name }: { name: string }) {
+  const [support, setSupport] = useState(pushSupport)
+  const [lead, setLead] = useState<number | null>(localReminder)
+  const [busy, setBusy] = useState(false)
+  const [note, setNote] = useState<string | null>(null)
+  useEffect(() => {
+    let alive = true
+    void savedReminder().then((l) => alive && setLead(l))
+    return () => {
+      alive = false
+    }
+  }, [])
+
+  const choose = async (v: string | undefined) => {
+    const next = !v || v === 'off' ? null : Number(v)
+    if (next === lead || busy) return
+    setBusy(true)
+    setNote(null)
+    if (next === null) {
+      await disableReminders()
+      setLead(null)
+    } else if (lead === null) {
+      const r = await enableReminders(next)
+      setSupport(pushSupport())
+      if (r.ok) {
+        setLead(next)
+        setNote('Reminders are on for this phone.')
+      } else if (r.reason === 'failed') setNote(`Couldn’t turn reminders on${r.detail ? `: ${r.detail}` : ''}.`)
+    } else if (await setReminderLead(next)) setLead(next)
+    else setNote('Couldn’t change it. Check the connection and try again.')
+    setBusy(false)
+  }
+  const test = async () => {
+    setBusy(true)
+    setNote((await sendTestReminder()) ? 'Sent. It should arrive in a few seconds.' : 'Couldn’t send a test. Try turning reminders off and on again.')
+    setBusy(false)
+  }
+
+  return (
+    <section className="mb-6" aria-labelledby="remind-h">
+      <h3 id="remind-h" className="mb-2 text-[15px] font-semibold text-ink-2">
+        Remind me on this phone
+      </h3>
+      <Choices
+        options={[
+          { id: 'off', label: 'Off' },
+          { id: '5', label: '5 min' },
+          { id: '10', label: '10 min' },
+          { id: '15', label: '15 min' },
+          { id: '30', label: '30 min' },
+        ]}
+        value={lead === null ? 'off' : String(lead)}
+        onChange={(v) => void choose(v)}
+        tone="sleep"
+        columns={5}
+      />
+      <p className="mt-2 text-[14px] text-ink-2">
+        {lead === null
+          ? `A notification before ${name}’s nap and bedtime sweet spots, even when Leela is closed. Everyone turns it on on their own phone.`
+          : `On: ${lead} minutes before each nap and bedtime sweet spot, for every baby in the family.`}
+      </p>
+      {support !== 'ok' && <p className="mt-2 rounded-2xl bg-[var(--feed-soft)] px-4 py-3 text-[14px] leading-snug">{SUPPORT_TEXT[support]}</p>}
+      {lead !== null && (
+        <Button variant="secondary" size="md" className="mt-3" onClick={() => void test()} disabled={busy}>
+          Send a test notification
+        </Button>
+      )}
+      {note && (
+        <p className="mt-2 text-[14px] font-semibold" role="status">
+          {note}
+        </p>
+      )}
+    </section>
   )
 }
