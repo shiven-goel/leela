@@ -20,23 +20,32 @@ export function PhotoThumb({ path, className }: { path: string; className?: stri
 
 export function PhotoPicker({ paths, onChange, max = 4 }: { paths: string[]; onChange: (p: string[]) => void; max?: number }) {
   const input = useRef<HTMLInputElement>(null)
-  const [busy, setBusy] = useState(false)
+  const [busy, setBusy] = useState<{ done: number; total: number } | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   const add = async (files: FileList | null) => {
     if (!files?.length) return
-    setBusy(true)
+    const list = Array.from(files).slice(0, max - paths.length)
+    setBusy({ done: 0, total: list.length })
     setError(null)
     const next = [...paths]
-    try {
-      for (const f of Array.from(files).slice(0, max - paths.length)) next.push(await uploadPhoto(f))
-      onChange(next)
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Couldn’t add that photo.')
-    } finally {
-      setBusy(false)
-      if (input.current) input.current.value = ''
+    let failed = 0
+    let lastError = ''
+    // Each photo is kept as soon as it's uploaded, so one bad file doesn't lose the rest.
+    for (const [i, f] of list.entries()) {
+      try {
+        next.push(await uploadPhoto(f))
+        onChange([...next])
+      } catch (e) {
+        failed++
+        lastError = e instanceof Error ? e.message : 'Couldn’t add that photo.'
+      }
+      setBusy({ done: i + 1, total: list.length })
     }
+    if (failed) setError(failed === list.length ? lastError : `${failed} of ${list.length} photos couldn’t be added. ${lastError}`)
+    if (files.length > list.length) setError(`Up to ${max} photos here. The first ${list.length} were added.`)
+    setBusy(null)
+    if (input.current) input.current.value = ''
   }
 
   return (
@@ -60,12 +69,12 @@ export function PhotoPicker({ paths, onChange, max = 4 }: { paths: string[]; onC
           <button
             type="button"
             onClick={() => input.current?.click()}
-            disabled={busy}
+            disabled={busy !== null}
             className="grid h-20 w-20 place-items-center rounded-2xl bg-card-2 text-ink-2 ring-1 ring-line ring-dashed"
           >
             <span className="flex flex-col items-center gap-1 text-[13px] font-semibold">
               <Camera size={24} weight="duotone" />
-              {busy ? 'Adding…' : 'Add'}
+              {busy ? `${busy.done} of ${busy.total}` : 'Add'}
             </span>
           </button>
         )}
