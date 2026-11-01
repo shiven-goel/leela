@@ -1,7 +1,8 @@
 import { create } from 'zustand'
 import type { Child, Family, LeelaEvent, Member, Prefs, Profile, TimerSegment } from './types'
 
-export type Tab = 'today' | 'history' | 'diary' | 'family'
+export type Tab = 'today' | 'history' | 'notes' | 'diary' | 'family'
+export type OverlayState = { kind: 'import' } | { kind: 'note'; id?: string } | { kind: 'book' } | null
 export type Status = 'loading' | 'signed_out' | 'no_family' | 'ready'
 
 export interface Toast {
@@ -42,6 +43,8 @@ export interface LeelaState {
   removedNotice: boolean
   /** Keeps the setup screens up until the new family has its baby and invite. */
   onboarding: boolean
+  /** A full screen open over the tabs: importing, writing a note, the diary book. */
+  overlay: OverlayState
 
   set: (patch: Partial<LeelaState>) => void
   upsertEvents: (rows: LeelaEvent[], opts?: { force?: boolean }) => void
@@ -75,6 +78,7 @@ const initial = {
   conflict: null,
   removedNotice: false,
   onboarding: false,
+  overlay: null as OverlayState,
 }
 
 export const useLeela = create<LeelaState>((set, get) => ({

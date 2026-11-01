@@ -27,6 +27,8 @@ export interface EventData {
   left_s?: number
   right_s?: number
   last_side?: Side
+  /** Breastfeeding time when the sides weren't recorded (imported logs). */
+  total_s?: number
   // bottle
   amount_ml?: number
   contents?: 'breast' | 'formula' | 'mixed'
@@ -59,6 +61,11 @@ export interface EventData {
   vaccine?: string
   // activities & milestones
   label?: string
+  // notes: long text lives here, the short `notes` column is for comments on other entries
+  title?: string
+  body?: string
+  /** An entry added from a note keeps a link to it. */
+  from_note?: string
   // contractions
   intensity?: 'mild' | 'moderate' | 'strong'
   [key: string]: unknown
@@ -122,6 +129,12 @@ export interface Profile {
 export interface Prefs {
   length?: 'cm' | 'in'
   temp?: 'c' | 'f'
+  /** Words this parent has taught Leela: word -> meaning id (see import/vocab.ts). */
+  vocab?: Record<string, string>
+  /** What a bare "fed" means in this parent's notes. */
+  feedDefault?: 'nursing' | 'bottle'
+  /** How this parent writes numeric dates. */
+  dateOrder?: 'dmy' | 'mdy'
 }
 
 export interface Child {

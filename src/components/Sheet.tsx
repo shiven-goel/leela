@@ -1,25 +1,16 @@
 import { AnimatePresence, motion, useDragControls, useReducedMotion } from 'motion/react'
 import { type ReactNode, useEffect, useId, useRef } from 'react'
 import { X } from '@phosphor-icons/react'
+import { popLayer, pushLayer } from '../lib/backstack'
 
-/** Lets the phone's back button close the top sheet instead of leaving the app. */
-function useBackToClose(open: boolean, onClose: () => void) {
-  const closeRef = useRef(onClose)
-  closeRef.current = onClose
+/** Lets the phone's back button step out of this layer; `onBack` returns true to stay open. */
+export function useBackToClose(open: boolean, onBack: () => boolean | void) {
+  const backRef = useRef(onBack)
+  backRef.current = onBack
   useEffect(() => {
     if (!open) return
-    const marker = { leelaSheet: Math.random() }
-    window.history.pushState(marker, '')
-    let poppedByUs = false
-    const onPop = () => {
-      poppedByUs = true
-      closeRef.current()
-    }
-    window.addEventListener('popstate', onPop)
-    return () => {
-      window.removeEventListener('popstate', onPop)
-      if (!poppedByUs && window.history.state === marker) window.history.back()
-    }
+    const layer = pushLayer(() => backRef.current())
+    return () => popLayer(layer)
   }, [open])
 }
 

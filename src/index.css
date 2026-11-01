@@ -166,3 +166,29 @@ textarea {
 .pulse-dot {
   animation: leela-pulse 2s ease-in-out infinite;
 }
+
+/* The diary book: only the book prints, on white, with its colours kept. */
+.print-root {
+  display: none;
+}
+@media print {
+  html,
+  body {
+    background: #fff !important;
+  }
+  #root {
+    display: none !important;
+  }
+  .print-root {
+    display: block !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .book-page {
+    break-after: page;
+  }
+  .book-avoid,
+  .book img {
+    break-inside: avoid;
+  }
+}

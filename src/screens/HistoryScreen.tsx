@@ -1,5 +1,5 @@
 import clsx from 'clsx'
-import { CalendarBlank, Plus } from '@phosphor-icons/react'
+import { CalendarBlank, FileArrowUp, Plus } from '@phosphor-icons/react'
 import { useMemo, useRef, useState } from 'react'
 import { LogSheet } from '../components/LogSheet'
 import { MoreSheet } from '../components/MoreSheet'
@@ -50,13 +50,22 @@ export function HistoryScreen() {
   const isToday = dayKey(day, tz) === dayKey(now, tz)
   const defaultAt = isToday ? Date.now() : atLocalTime(day, '12:00', tz).getTime()
   const label = dayLabel(day, tz, now)
-  const nursingMin = Math.round((totals.nursingLeftS + totals.nursingRightS) / 60)
+  const nursingMin = Math.round((totals.nursingLeftS + totals.nursingRightS + totals.nursingOtherS) / 60)
 
   return (
     <div className="mx-auto max-w-[560px] px-5 pb-32">
-      <header className="safe-top pb-3">
-        <h1 className="font-display text-[30px] font-extrabold leading-tight">History</h1>
-        <p className="text-[15px] text-ink-2">{child.name}, day by day. Tap any day to add something you forgot.</p>
+      <header className="safe-top flex items-start justify-between gap-3 pb-3">
+        <div className="min-w-0">
+          <h1 className="font-display text-[30px] font-extrabold leading-tight">History</h1>
+          <p className="text-[15px] text-ink-2">{child.name}, day by day. Tap any day to add something you forgot.</p>
+        </div>
+        <button
+          type="button"
+          onClick={() => useLeela.getState().set({ overlay: { kind: 'import' } })}
+          className="mt-2 flex h-11 shrink-0 items-center gap-1.5 rounded-2xl bg-card px-3.5 text-[15px] font-semibold ring-1 ring-line"
+        >
+          <FileArrowUp size={20} weight="bold" aria-hidden="true" /> Import
+        </button>
       </header>
 
       <div className="no-scrollbar -mx-5 flex gap-2 overflow-x-auto px-5 pb-2" role="tablist" aria-label="Choose a day">
@@ -124,7 +133,7 @@ export function HistoryScreen() {
           <Summary tone="feed" label="Solids" value={String(totals.solids)} sub={totals.pumpMl ? `${totals.pumpMl} ml pumped` : 'meals'} />
         </dl>
 
-        <Timeline events={list} now={now} onSelect={(e) => setSheet({ type: e.type, edit: e })} empty={`Nothing logged for ${label.toLowerCase()}. Forgot something? Add it here.`} />
+        <Timeline events={list} now={now} onSelect={(e) => (e.type === 'note' ? useLeela.getState().set({ overlay: { kind: 'note', id: e.id } }) : setSheet({ type: e.type, edit: e }))} empty={`Nothing logged for ${label.toLowerCase()}. Forgot something? Add it here.`} />
       </section>
 
       <MoreSheet
@@ -133,6 +142,10 @@ export function HistoryScreen() {
         dayLabel={label.toLowerCase() === 'today' ? 'today' : label}
         onPick={(t) => {
           setMore(false)
+          if (t === 'note') {
+            useLeela.getState().set({ overlay: { kind: 'note' } })
+            return
+          }
           setSheet({ type: t, group: ['nursing', 'bottle', 'solids'].includes(t) ? ['nursing', 'bottle', 'solids'] : undefined })
         }}
       />

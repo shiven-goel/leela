@@ -266,7 +266,13 @@ function subscribe(familyId: string) {
   if (channel) void supabase.removeChannel(channel)
   const filter = `family_id=eq.${familyId}`
   const onEvent = (payload: { new: unknown }) => {
-    getState().upsertEvents([payload.new as LeelaEvent])
+    const row = payload.new as Partial<LeelaEvent>
+    // Rows over Realtime's size limit arrive without their big fields: fetch the whole row.
+    if (row.id && (row.data === undefined || row.photo_paths === undefined || row.started_at === undefined)) {
+      void pullEvent(row.id)
+      return
+    }
+    getState().upsertEvents([row as LeelaEvent])
     saveSnapshotSoon()
   }
   const onSegment = (payload: { new: unknown }) => {
@@ -363,6 +369,12 @@ export async function flush(): Promise<void> {
     flushing = false
     await updatePending()
   }
+}
+
+async function pullEvent(id: string): Promise<void> {
+  const { data } = await supabase.from('events').select('*').eq('id', id).maybeSingle<LeelaEvent>()
+  if (data) getState().upsertEvents([data])
+  saveSnapshotSoon()
 }
 
 /** After a row's last queued change lands, take the server's version of it. */

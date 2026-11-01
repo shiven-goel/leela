@@ -209,14 +209,14 @@ export function TodayScreen() {
             label="Feeds"
             value={String(totals.feeds)}
             tone="feed"
-            detail={totals.bottleMl ? `${totals.bottleMl} ml bottle` : `${Math.round((totals.nursingLeftS + totals.nursingRightS) / 60)} min breast`}
+            detail={totals.bottleMl ? `${totals.bottleMl} ml bottle` : `${Math.round((totals.nursingLeftS + totals.nursingRightS + totals.nursingOtherS) / 60)} min breast`}
           />
           <Stat label="Diapers" value={String(totals.diapers)} tone="diaper" detail={`${totals.wet} wet, ${totals.dirty} dirty`} />
         </dl>
         <Timeline
           events={todays}
           now={now}
-          onSelect={(e) => setSheet({ type: e.type, edit: e })}
+          onSelect={(e) => (e.type === 'note' ? useLeela.getState().set({ overlay: { kind: 'note', id: e.id } }) : setSheet({ type: e.type, edit: e }))}
           empty={`Nothing logged for ${child.name} today yet. Use the buttons above.`}
         />
       </section>
@@ -226,7 +226,8 @@ export function TodayScreen() {
         onClose={() => setMore(false)}
         onPick={(t) => {
           setMore(false)
-          if (t === 'sleep' || t === 'nursing' || t === 'bottle' || t === 'solids') setSheet({ type: t, group: t === 'sleep' ? undefined : ['nursing', 'bottle', 'solids'] })
+          if (t === 'note') useLeela.getState().set({ overlay: { kind: 'note' } })
+          else if (t === 'sleep' || t === 'nursing' || t === 'bottle' || t === 'solids') setSheet({ type: t, group: t === 'sleep' ? undefined : ['nursing', 'bottle', 'solids'] })
           else setSheet({ type: t })
         }}
       />

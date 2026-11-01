@@ -12,6 +12,8 @@ export interface Totals {
   bottleMl: number
   nursingLeftS: number
   nursingRightS: number
+  /** Breastfeeding with no sides recorded (imported logs). */
+  nursingOtherS: number
   solids: number
   diapers: number
   wet: number
@@ -31,6 +33,7 @@ export const emptyTotals = (): Totals => ({
   bottleMl: 0,
   nursingLeftS: 0,
   nursingRightS: 0,
+  nursingOtherS: 0,
   solids: 0,
   diapers: 0,
   wet: 0,
@@ -133,6 +136,7 @@ export function totalsFor(
         const s = nursingSeconds(e, segments, now)
         t.nursingLeftS += s.left
         t.nursingRightS += s.right
+        if (!e.timer_state && e.data.left_s === undefined && e.data.right_s === undefined && typeof e.data.total_s === 'number') t.nursingOtherS += e.data.total_s
         break
       }
       case 'bottle':

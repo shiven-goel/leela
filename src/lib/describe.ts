@@ -41,11 +41,17 @@ export function eventDetail(
       break
     }
     case 'nursing': {
+      if (e.timer_state) parts.push(e.timer_state === 'paused' ? 'Paused' : `Feeding on the ${d.last_side ?? 'left'}`)
+      if (!e.timer_state && d.left_s === undefined && d.right_s === undefined && typeof d.total_s === 'number') {
+        parts.push(`${Math.round(d.total_s / 60)}m`)
+        break
+      }
       const s = nursingSeconds(e, segments, now)
       const l = Math.round(s.left / 60)
       const r = Math.round(s.right / 60)
-      if (e.timer_state) parts.push(e.timer_state === 'paused' ? 'Paused' : `Feeding on the ${d.last_side ?? 'left'}`)
-      parts.push(`left ${l}m, right ${r}m`)
+      if (e.timer_state || (l && r)) parts.push(`left ${l}m, right ${r}m`)
+      else if (l) parts.push(`left ${l}m`)
+      else if (r) parts.push(`right ${r}m`)
       break
     }
     case 'bottle':
@@ -105,6 +111,22 @@ export function eventDetail(
     default:
       break
   }
-  if (e.notes && (e.type === 'note' || parts.filter(Boolean).length === 0)) parts.push(e.notes.split('\n')[0])
+  if (e.type === 'note') {
+    const body = noteBody(e)
+    if (body) parts.push(body.split('\n').find((l) => l.trim()) ?? '')
+  } else if (e.notes && parts.filter(Boolean).length === 0) parts.push(e.notes.split('\n')[0])
   return parts.filter(Boolean).join(', ')
+}
+
+/** A note's full text: long notes keep it in data.body, older ones in notes. */
+export function noteBody(e: LeelaEvent): string {
+  return typeof e.data.body === 'string' ? e.data.body : (e.notes ?? '')
+}
+
+/** A note's heading: its title, else its first line. */
+export function noteTitle(e: LeelaEvent): string {
+  const t = typeof e.data.title === 'string' ? e.data.title.trim() : ''
+  if (t) return t
+  const first = noteBody(e).split('\n').find((l) => l.trim())?.trim() ?? ''
+  return first.length > 70 ? `${first.slice(0, 68).trimEnd()}…` : first || 'Note'
 }

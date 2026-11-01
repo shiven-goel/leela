@@ -90,6 +90,12 @@ export function seed(variant: string) {
   add('temperature', midnight - 20 * H, null, { temp_c: 37.1, method: 'armpit' }, 'u2')
   add('milestone', midnight - 40 * H, null, { kind: 'laugh' }, 'u1', { notes: 'Giggled at the ceiling fan for a full minute.' })
   add('note', midnight - 60 * H, null, {}, 'u2', { notes: 'First visit to Nani’s house. Slept through the whole car ride.' })
+  add('note', midnight - 9 * 24 * H, null, {
+    title: 'The longest night',
+    body: 'Up every two hours with a blocked nose. We took turns walking her up and down the hallway, humming the song Papa made up.\n\nBy 5 am she finally settled on my chest and we both slept until the sun came in.',
+  }, 'u1')
+  add('milestone', midnight - 30 * 24 * H, null, { kind: 'smile' }, 'u2', { notes: 'A real smile, at Papa, during the morning feed.' })
+  add('note', midnight - 70 * 24 * H, null, { body: 'Home from the hospital today. Everyone cried, including the cat.' }, 'u2')
 
   // Remove anything in the future relative to the chosen scenario, then add the live timers.
   if (variant === 'asleep') {
@@ -121,5 +127,9 @@ export function seed(variant: string) {
     segments,
     catchUpSince: new Date(now - 7 * H).toISOString(),
     tab: (new URLSearchParams(window.location.search).get('tab') as 'today') ?? 'today',
+    overlay: ((): import('../lib/store').OverlayState => {
+      const o = new URLSearchParams(window.location.search).get('overlay')
+      return o === 'import' || o === 'book' ? { kind: o } : o === 'note' ? { kind: 'note' } : null
+    })(),
   })
 }

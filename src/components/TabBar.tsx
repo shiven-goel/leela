@@ -1,11 +1,12 @@
 import clsx from 'clsx'
-import { BookOpenText, ClockCounterClockwise, House, UsersThree } from '@phosphor-icons/react'
+import { BookOpenText, ClockCounterClockwise, House, NotePencil, UsersThree } from '@phosphor-icons/react'
 import { type Tab, useLeela } from '../lib/store'
 
 const TABS: { id: Tab; label: string; Icon: typeof House }[] = [
   { id: 'today', label: 'Today', Icon: House },
   { id: 'history', label: 'History', Icon: ClockCounterClockwise },
-  { id: 'diary', label: 'Baby Diary', Icon: BookOpenText },
+  { id: 'notes', label: 'Notes', Icon: NotePencil },
+  { id: 'diary', label: 'Diary', Icon: BookOpenText },
   { id: 'family', label: 'Family', Icon: UsersThree },
 ]
 
@@ -14,7 +15,7 @@ export function TabBar() {
   const set = useLeela((s) => s.set)
   return (
     <nav className="safe-bottom fixed inset-x-0 bottom-0 z-30 border-t border-line bg-card/95 backdrop-blur" aria-label="Main">
-      <ul className="mx-auto grid max-w-[560px] grid-cols-4">
+      <ul className="mx-auto grid max-w-[560px] grid-cols-5">
         {TABS.map(({ id, label, Icon }) => {
           const on = tab === id
           return (

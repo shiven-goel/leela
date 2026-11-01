@@ -1,4 +1,4 @@
-import { Copy, Crown, PencilSimple, Plus, ShareNetwork } from '@phosphor-icons/react'
+import { Copy, Crown, FileArrowUp, PencilSimple, Plus, ShareNetwork, X } from '@phosphor-icons/react'
 import { useState } from 'react'
 import { ChildSheet } from '../components/ChildSheet'
 import { Sheet } from '../components/Sheet'
@@ -9,6 +9,8 @@ import { myPrefs, useLeela } from '../lib/store'
 import { supabase } from '../lib/supabase'
 import { bootstrap, refresh, teardown } from '../lib/sync'
 import { getThemeMode, setThemeMode, type ThemeMode } from '../lib/theme'
+import { forgetWord } from '../lib/import/learn'
+import { meaningById } from '../lib/import/vocab'
 import { ageText } from '../lib/time'
 import type { Child } from '../lib/types'
 import type { RpcName } from '../lib/database.types'
@@ -241,6 +243,43 @@ export function FamilyScreen() {
           <TextInput label="Night ends" type="time" value={family.night_end.slice(0, 5)} onChange={(e) => e.target.value && void saveFamilySettings({ night_end: e.target.value })} />
         </div>
         <p className="-mt-3 text-[14px] text-ink-2">Sleep that starts in this window counts as night sleep.</p>
+      </Section>
+
+      <Section title="Past logs">
+        <p className="mb-3 text-[15px] text-ink-2">Bring in what you wrote before Leela, from a PDF, Word file, Google Doc, spreadsheet or WhatsApp chat. You check everything before it’s saved, and any import can be undone.</p>
+        <Button variant="secondary" size="md" className="w-full" onClick={() => useLeela.getState().set({ overlay: { kind: 'import' } })}>
+          <FileArrowUp size={18} weight="bold" aria-hidden="true" /> Bring in past logs
+        </Button>
+      </Section>
+
+      <Section title="Words Leela has learned">
+        {Object.keys(prefs.vocab ?? {}).length === 0 ? (
+          <p className="text-[15px] text-ink-2">When Leela meets shorthand it doesn’t know, it asks you once and remembers. Your words show up here.</p>
+        ) : (
+          <ul className="divide-y divide-line">
+            {Object.entries(prefs.vocab ?? {})
+              .sort((a, b) => a[0].localeCompare(b[0]))
+              .map(([term, meaning]) => (
+                <li key={term} className="flex items-center gap-3 py-2.5">
+                  <span className="min-w-0 flex-1 text-[16px]">
+                    <span className="font-semibold">“{term}”</span> <span className="text-ink-2">means {meaningById(meaning)?.label.toLowerCase() ?? meaning}</span>
+                  </span>
+                  <button type="button" onClick={() => void forgetWord(term)} className="grid h-10 w-10 place-items-center rounded-full bg-card-2" aria-label={`Forget ${term}`}>
+                    <X size={16} weight="bold" />
+                  </button>
+                </li>
+              ))}
+          </ul>
+        )}
+        {(prefs.feedDefault || prefs.dateOrder) && (
+          <p className="mt-3 text-[14px] text-ink-3">
+            {prefs.feedDefault ? `A plain “fed” means ${prefs.feedDefault === 'bottle' ? 'a bottle' : 'breastfeeding'}. ` : ''}
+            {prefs.dateOrder ? `Dates are read as ${prefs.dateOrder === 'dmy' ? 'day/month' : 'month/day'}.` : ''}{' '}
+            <button type="button" className="font-semibold underline underline-offset-4" onClick={() => void savePrefs({ feedDefault: undefined, dateOrder: undefined })}>
+              Reset
+            </button>
+          </p>
+        )}
       </Section>
 
       <Section title="Your account">
