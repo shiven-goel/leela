@@ -9,6 +9,7 @@ import { createECDH, randomBytes } from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
 import ece from 'http_ece'
+import NodeWs from 'ws'
 import { dayIso, dayLong, makeFixtures } from './fixtures.mjs'
 
 const BASE = process.env.BASE ?? 'http://localhost:4173/'
@@ -1443,7 +1444,47 @@ async function full() {
 /** A stand-in for a phone's push inbox: registers with Mozilla's real push service over its
  * WebSocket protocol (as Firefox does) and decrypts what arrives with the reference library. */
 async function pushInbox() {
-  const ws = new WebSocket('wss://push.services.mozilla.com/', 'push-notification')
+  // Firefox's own connection: the push-notification subprotocol, a Firefox user agent.
+  const tries = []
+  const open = (make) =>
+    new Promise((resolve, reject) => {
+      let ws
+      try {
+        ws = make()
+      } catch (e) {
+        reject(e)
+        return
+      }
+      const fail = (why) => {
+        try {
+          ws.close()
+        } catch {
+          /* already closed */
+        }
+        reject(new Error(why))
+      }
+      ws.addEventListener('open', () => resolve(ws), { once: true })
+      ws.addEventListener('error', (e) => fail(`error: ${e?.message ?? e?.error?.message ?? 'unknown'}${e?.error?.cause ? ` (${e.error.cause.message ?? e.error.cause})` : ''}`), { once: true })
+      ws.addEventListener('close', (e) => fail(`closed ${e?.code ?? ''} ${e?.reason ?? ''}`), { once: true })
+      if (typeof ws.on === 'function') ws.on('unexpected-response', (_req, res) => fail(`HTTP ${res.statusCode} ${res.statusMessage ?? ''}`))
+      setTimeout(() => fail('timed out'), 15_000)
+    })
+  const url = 'wss://push.services.mozilla.com/'
+  const ua = 'Mozilla/5.0 (X11; Linux x86_64; rv:140.0) Gecko/20100101 Firefox/140.0'
+  let ws = null
+  for (const [name, make] of [
+    ['ws + Firefox UA', () => new NodeWs(url, 'push-notification', { headers: { 'User-Agent': ua } })],
+    ['Node WebSocket', () => new WebSocket(url, 'push-notification')],
+    ['ws, no subprotocol', () => new NodeWs(url, { headers: { 'User-Agent': ua } })],
+  ]) {
+    try {
+      ws = await open(make)
+      break
+    } catch (e) {
+      tries.push(`${name}: ${e.message}`)
+    }
+  }
+  assert(ws, `couldn’t connect to Mozilla’s push service. ${tries.join('; ')}`)
   const messages = []
   const waiting = []
   ws.addEventListener('message', (ev) => {
@@ -1460,10 +1501,6 @@ async function pushInbox() {
       waiting.push({ type, resolve })
       setTimeout(() => reject(new Error(`no ${type} reply from Mozilla’s push service`)), 20_000)
     })
-  await new Promise((resolve, reject) => {
-    ws.addEventListener('open', resolve, { once: true })
-    ws.addEventListener('error', () => reject(new Error('couldn’t connect to Mozilla’s push service')), { once: true })
-  })
   ws.send(JSON.stringify({ messageType: 'hello', use_webpush: true, uaid: '', channelIDs: [] }))
   const hello = await replyTo('hello')
   assert(hello.status === 200, `push service hello: ${JSON.stringify(hello)}`)
