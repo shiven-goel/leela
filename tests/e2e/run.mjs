@@ -1567,9 +1567,13 @@ async function push() {
     ])
     assert(!sleepErr, `sleeps: ${sleepErr?.message}`)
 
-    // The phone: notifications allowed, and its push subscription is the inbox above.
+    // The phone: notifications allowed, and its push subscription is the inbox above. Headless
+    // Chromium reports notifications as blocked whatever is granted, so the permission prompt is
+    // answered here, as a person would.
     await p.ctx.grantPermissions(['notifications'], { origin: new URL(BASE).origin })
     await p.ctx.addInitScript(({ endpoint, p256dh, auth, key }) => {
+      Object.defineProperty(Notification, 'permission', { get: () => 'granted', configurable: true })
+      Notification.requestPermission = async () => 'granted'
       const bytes = Uint8Array.from(atob(key.replace(/-/g, '+').replace(/_/g, '/') + '='.repeat((4 - (key.length % 4)) % 4)), (c) => c.charCodeAt(0))
       const sub = { endpoint, expirationTime: null, options: { userVisibleOnly: true, applicationServerKey: bytes.buffer }, toJSON: () => ({ endpoint, expirationTime: null, keys: { p256dh, auth } }), unsubscribe: async () => true }
       let active = null
@@ -1606,7 +1610,11 @@ async function push() {
     }, 15_000)
   }, { needs: ['N1'] })
   inbox?.close()
-  if (api) await api.rpc('leave_family', { p_confirm: 'DELETE' }).catch(() => {})
+  try {
+    if (api) await api.rpc('leave_family', { p_confirm: 'DELETE' })
+  } catch {
+    /* best effort: the test family is closed */
+  }
 }
 
 // ============================================================================ run and report
