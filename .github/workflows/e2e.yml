@@ -108,7 +108,6 @@ jobs:
           key: leela-canary-${{ github.run_id }}
 
       - name: Check web addresses
-        if: env.MODE == 'full'
         continue-on-error: true
         run: node tests/e2e/domains.mjs > e2e-results/domains.txt
 
