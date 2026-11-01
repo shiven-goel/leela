@@ -1489,8 +1489,7 @@ async function pushInbox() {
   const waiting = []
   let closed = null
   ws.addEventListener('close', (e) => (closed = `closed ${e?.code ?? ''} ${e?.reason ?? ''}`.trim()))
-  // Firefox pings the service now and then; so does this inbox, so the connection stays up.
-  const keepAlive = setInterval(() => ws.readyState === 1 && ws.send('{}'), 20_000)
+  // No pings: the service closes connections that ping more often than every few minutes.
   ws.addEventListener('message', (ev) => {
     const m = JSON.parse(String(ev.data))
     if (m.messageType === 'notification') {
@@ -1532,10 +1531,7 @@ async function pushInbox() {
         await new Promise((r) => setTimeout(r, 500))
       }
     },
-    close: () => {
-      clearInterval(keepAlive)
-      ws.close()
-    },
+    close: () => ws.close(),
   }
 }
 
@@ -1625,6 +1621,7 @@ async function push() {
   }, { needs: ['N1'] })
   inbox?.close()
   try {
+    if (api && ch) await api.from('push_subscriptions').update({ disabled_at: new Date().toISOString(), disabled_reason: 'test finished' }).eq('endpoint', ch.endpoint)
     if (api) await api.rpc('leave_family', { p_confirm: 'DELETE' })
   } catch {
     /* best effort: the test family is closed */

@@ -79,8 +79,14 @@ async function remind(admin: Db, vapid: Vapid) {
     admin.from('family_members').select('family_id, user_id').in('family_id', familyIds).is('removed_at', null),
     admin.from('children').select('id, family_id, name, birth_date, due_date, sex, avatar_path, settings, created_at, deleted_at').in('family_id', familyIds).is('deleted_at', null),
   ])
-  if (!kids?.length) return { phones: subs.length, sent: 0 }
   const member = new Set((members ?? []).map((m: { family_id: string; user_id: string }) => `${m.family_id}/${m.user_id}`))
+  // Phones of people who left, or of families that were closed, stop getting reminders.
+  const open = new Set((families ?? []).map((f: { id: string }) => f.id))
+  const stale = (subs as Sub[]).filter((s) => !open.has(s.family_id) || !member.has(`${s.family_id}/${s.user_id}`))
+  if (stale.length) {
+    await admin.from('push_subscriptions').update({ disabled_at: new Date().toISOString(), disabled_reason: 'left the family' }).in('id', stale.map((s) => s.id))
+  }
+  if (!kids?.length) return { phones: subs.length, sent: 0 }
   const since = new Date(now - 16 * DAY).toISOString()
   const sleeps: Record<string, unknown>[] = []
   for (let from = 0; ; from += 1000) {
