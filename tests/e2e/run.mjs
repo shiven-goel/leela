@@ -1573,7 +1573,7 @@ async function push() {
   let ch = null
   let api = null
   const p = await phone('push-phone')
-  await check('N1', 'Reminders: turning them on saves this phone, and a test notification arrives through a real push service', async () => {
+  await check('R1', 'Reminders: turning them on saves this phone, and a test notification arrives through a real push service', async () => {
     assert(VAPID, 'no VITE_VAPID_PUBLIC_KEY in .env.production')
     inbox = await pushInbox()
     ch = await inbox.register()
@@ -1627,14 +1627,14 @@ async function push() {
     assert(msg.title === 'Leela reminders are on', `test title: ${msg.title}`)
     return `${zone}; “${msg.title}: ${msg.body}”`
   })
-  await check('N2', 'A reminder arrives before the sweet spot, sent by the every-minute schedule', async () => {
+  await check('R2', 'A reminder arrives before the sweet spot, sent by the every-minute schedule', async () => {
     const msg = await inbox.next(ch, (m) => /sweet spot/.test(m.title ?? '') && m.tag !== 'leela-test', 180_000)
     assert(/^Kai’s nap sweet spot (in \d+ min|is now)$/.test(msg.title), `title: ${msg.title}`)
     assert(/^Sweet spot \d{1,2}:\d{2}/.test(msg.body), `body: ${msg.body}`)
     assert(msg.url && msg.url.startsWith('http'), `url: ${msg.url}`)
     return `“${msg.title}. ${msg.body}”`
-  }, { needs: ['N1'] })
-  await check('N3', 'Turning reminders off on the phone stops them', async () => {
+  }, { needs: ['R1'] })
+  await check('R3', 'Turning reminders off on the phone stops them', async () => {
     const sheet = p.page.getByRole('dialog', { name: 'Sweet spot' })
     if (!(await sheet.count())) await p.page.getByRole('button', { name: /Open Sweet spot$/ }).click()
     // The phone shows the reminder as on, from the server, before turning it off.
@@ -1644,7 +1644,7 @@ async function push() {
       const { data } = await api.from('push_subscriptions').select('disabled_at').eq('endpoint', ch.endpoint).single()
       return Boolean(data?.disabled_at)
     }, 15_000)
-  }, { needs: ['N1'] })
+  }, { needs: ['R1'] })
   inbox?.close()
   try {
     if (api && ch) await api.from('push_subscriptions').update({ disabled_at: new Date().toISOString(), disabled_reason: 'test finished' }).eq('endpoint', ch.endpoint)
