@@ -1441,78 +1441,99 @@ async function full() {
 }
 
 // ============================================================================ reminders
-/** A stand-in for a phone's push inbox: registers with Mozilla's real push service over its
- * WebSocket protocol (as Firefox does) and decrypts what arrives with the reference library. */
+/** A stand-in for a phone's push inbox: talks to Mozilla's real push service over its WebSocket
+ * protocol, as Firefox does (reconnecting with the same identity if the service drops the line, so
+ * held messages arrive), and decrypts what arrives with the reference library. */
 async function pushInbox() {
-  // Firefox's own connection: the push-notification subprotocol, a Firefox user agent.
-  const tries = []
+  const url = 'wss://push.services.mozilla.com/'
+  const ua = 'Mozilla/5.0 (X11; Linux x86_64; rv:140.0) Gecko/20100101 Firefox/140.0'
+  const t0 = Date.now()
+  const timeline = []
+  const note = (s) => timeline.push(`${Math.round((Date.now() - t0) / 1000)}s ${s}`)
+  const messages = []
+  const waiting = []
+  const channels = []
+  let uaid = ''
+  let ws = null
+  let finished = false
+  let reconnects = 0
+
   const open = (make) =>
     new Promise((resolve, reject) => {
-      let ws
+      let sock
       try {
-        ws = make()
+        sock = make()
       } catch (e) {
         reject(e)
         return
       }
       const fail = (why) => {
         try {
-          ws.close()
+          sock.close()
         } catch {
           /* already closed */
         }
         reject(new Error(why))
       }
-      ws.addEventListener('open', () => resolve(ws), { once: true })
-      ws.addEventListener('error', (e) => fail(`error: ${e?.message ?? e?.error?.message ?? 'unknown'}${e?.error?.cause ? ` (${e.error.cause.message ?? e.error.cause})` : ''}`), { once: true })
-      ws.addEventListener('close', (e) => fail(`closed ${e?.code ?? ''} ${e?.reason ?? ''}`), { once: true })
-      if (typeof ws.on === 'function') ws.on('unexpected-response', (_req, res) => fail(`HTTP ${res.statusCode} ${res.statusMessage ?? ''}`))
+      sock.addEventListener('open', () => resolve(sock), { once: true })
+      sock.addEventListener('error', (e) => fail(`error: ${e?.message ?? e?.error?.message ?? 'unknown'}`), { once: true })
+      if (typeof sock.on === 'function') sock.on('unexpected-response', (_req, res) => fail(`HTTP ${res.statusCode}`))
       setTimeout(() => fail('timed out'), 15_000)
     })
-  const url = 'wss://push.services.mozilla.com/'
-  const ua = 'Mozilla/5.0 (X11; Linux x86_64; rv:140.0) Gecko/20100101 Firefox/140.0'
-  let ws = null
-  for (const [name, make] of [
-    ['ws + Firefox UA', () => new NodeWs(url, 'push-notification', { headers: { 'User-Agent': ua } })],
-    ['Node WebSocket', () => new WebSocket(url, 'push-notification')],
-    ['ws, no subprotocol', () => new NodeWs(url, { headers: { 'User-Agent': ua } })],
-  ]) {
-    try {
-      ws = await open(make)
-      break
-    } catch (e) {
-      tries.push(`${name}: ${e.message}`)
-    }
-  }
-  assert(ws, `couldn’t connect to Mozilla’s push service. ${tries.join('; ')}`)
-  const messages = []
-  const waiting = []
-  let closed = null
-  ws.addEventListener('close', (e) => (closed = `closed ${e?.code ?? ''} ${e?.reason ?? ''}`.trim()))
-  // No pings: the service closes connections that ping more often than every few minutes.
-  ws.addEventListener('message', (ev) => {
-    const m = JSON.parse(String(ev.data))
-    if (m.messageType === 'notification') {
-      ws.send(JSON.stringify({ messageType: 'ack', updates: [{ channelID: m.channelID, version: m.version }] }))
-      messages.push(m)
-    }
-    const i = waiting.findIndex((w) => w.type === m.messageType)
-    if (i >= 0) waiting.splice(i, 1)[0].resolve(m)
-  })
   const replyTo = (type) =>
     new Promise((resolve, reject) => {
       waiting.push({ type, resolve })
       setTimeout(() => reject(new Error(`no ${type} reply from Mozilla’s push service`)), 20_000)
     })
-  ws.send(JSON.stringify({ messageType: 'hello', use_webpush: true, uaid: '', channelIDs: [] }))
-  const hello = await replyTo('hello')
-  assert(hello.status === 200, `push service hello: ${JSON.stringify(hello)}`)
+
+  async function connect() {
+    const tries = []
+    for (const [name, make] of [
+      ['ws + Firefox UA', () => new NodeWs(url, 'push-notification', { headers: { 'User-Agent': ua } })],
+      ['Node WebSocket', () => new WebSocket(url, 'push-notification')],
+    ]) {
+      try {
+        ws = await open(make)
+        break
+      } catch (e) {
+        tries.push(`${name}: ${e.message}`)
+        ws = null
+      }
+    }
+    assert(ws, `couldn’t connect to Mozilla’s push service. ${tries.join('; ')}`)
+    note('connected')
+    const sock = ws
+    if (typeof sock.on === 'function') sock.on('ping', () => note('ping from service'))
+    sock.addEventListener('message', (ev) => {
+      const m = JSON.parse(String(ev.data))
+      note(`got ${m.messageType ?? 'ping'}${m.status ? ` ${m.status}` : ''}`)
+      if (m.messageType === 'notification') {
+        sock.send(JSON.stringify({ messageType: 'ack', updates: [{ channelID: m.channelID, version: m.version, code: 100 }] }))
+        if (!messages.some((x) => x.version === m.version)) messages.push(m)
+      }
+      const i = waiting.findIndex((w) => w.type === m.messageType)
+      if (i >= 0) waiting.splice(i, 1)[0].resolve(m)
+    })
+    sock.addEventListener('close', (e) => {
+      note(`closed ${e?.code ?? ''} ${e?.reason ?? ''}`.trim())
+      if (finished || reconnects >= 6) return
+      reconnects++
+      setTimeout(() => connect().catch((err) => note(`reconnect failed: ${err.message}`)), 1000)
+    })
+    sock.send(JSON.stringify({ messageType: 'hello', use_webpush: true, uaid, channelIDs: channels }))
+    const hello = await replyTo('hello')
+    assert(hello.status === 200, `push service hello: ${JSON.stringify(hello)}`)
+    uaid = hello.uaid
+  }
+  await connect()
+
   return {
     async register() {
       const channelID = crypto.randomUUID()
       ws.send(JSON.stringify({ messageType: 'register', channelID, key: VAPID }))
       const r = await replyTo('register')
       assert(r.status === 200 && r.pushEndpoint, `push service register: ${JSON.stringify(r)}`)
+      channels.push(channelID)
       const ecdh = createECDH('prime256v1')
       ecdh.generateKeys()
       const auth = randomBytes(16)
@@ -1527,11 +1548,14 @@ async function pushInbox() {
           const json = JSON.parse(plain.toString('utf8'))
           if (test(json)) return json
         }
-        if (Date.now() > end) throw new Error(`nothing arrived in ${Math.round(timeout / 1000)} s (${messages.length} messages in all${closed ? `; the push service connection ${closed}` : ''})`)
+        if (Date.now() > end) throw new Error(`nothing arrived in ${Math.round(timeout / 1000)} s (${messages.length} messages in all). Connection: ${timeline.slice(-12).join(', ')}`)
         await new Promise((r) => setTimeout(r, 500))
       }
     },
-    close: () => ws.close(),
+    close: () => {
+      finished = true
+      ws?.close()
+    },
   }
 }
 
