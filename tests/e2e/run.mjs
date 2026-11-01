@@ -5,8 +5,10 @@
 import { chromium, devices } from '@playwright/test'
 import { createClient } from '@supabase/supabase-js'
 import { execFileSync } from 'node:child_process'
+import { createECDH, randomBytes } from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
+import ece from 'http_ece'
 import { dayIso, dayLong, makeFixtures } from './fixtures.mjs'
 
 const BASE = process.env.BASE ?? 'http://localhost:4173/'
@@ -27,6 +29,7 @@ const env = Object.fromEntries(
 )
 const SUPA = env.VITE_SUPABASE_URL
 const KEY = env.VITE_SUPABASE_PUBLISHABLE_KEY
+const VAPID = env.VITE_VAPID_PUBLIC_KEY
 const RUN = `${dayIso(0).replace(/-/g, '')}-${Math.random().toString(36).slice(2, 6)}`
 const PW = `e2e-${crypto.randomUUID()}`
 const email = (who) => `e2e-${RUN}-${who}@leela.test`
@@ -1212,6 +1215,47 @@ async function full() {
     await dad.page.getByRole('button', { name: 'Asha', exact: true }).click()
   }, { needs: ['P1'] })
 
+  // ---------------------------------------------------------------- charts
+  await check('V1', 'History › Week draws the last seven days as a chart, and tapping a day opens it', async () => {
+    await tab(mom, 'History')
+    await mom.page.getByRole('tablist', { name: 'History view' }).getByRole('tab', { name: 'Week' }).click()
+    await mom.page.getByRole('img', { name: /^Week chart/ }).waitFor()
+    const days = mom.page.getByRole('button', { name: /Open this day$/ })
+    assert((await days.count()) === 7, `${await days.count()} day columns`)
+    const drawn = (fill) => mom.page.evaluate((f) => [...document.querySelectorAll('svg rect')].filter((r) => f.includes(r.getAttribute('fill'))).length, fill)
+    const feeds = await drawn(['var(--c-feed)'])
+    const sleeps = await drawn(['var(--c-night)', 'var(--c-nap)'])
+    const diapers = await drawn(['var(--c-diaper)'])
+    assert(feeds > 0 && sleeps > 0 && diapers > 0, `missing from the chart: ${feeds} feeds, ${sleeps} sleeps, ${diapers} diapers`)
+    const filters = mom.page.getByRole('group', { name: 'Show on the chart' })
+    await filters.getByRole('button', { name: 'Feeds' }).click()
+    assert((await drawn(['var(--c-feed)'])) === 0, 'feeds still drawn after hiding them')
+    await filters.getByRole('button', { name: 'Feeds' }).click()
+    assert((await drawn(['var(--c-feed)'])) === feeds, 'feeds didn’t come back')
+    await days.last().click()
+    const picked = mom.page.getByRole('tablist', { name: 'Choose a day' }).getByRole('tab', { selected: true })
+    await picked.waitFor()
+    return `${sleeps} sleeps, ${feeds} feeds and ${diapers} diapers drawn; opened ${(await picked.textContent()).trim()}`
+  }, { needs: ['L2'], shot: true })
+  await check('V2', 'History › Trends has a chart for each kind of entry, each with a table of its numbers', async () => {
+    await tab(mom, 'History')
+    await mom.page.getByRole('tablist', { name: 'History view' }).getByRole('tab', { name: 'Trends' }).click()
+    await mom.page.getByRole('region', { name: 'Sleep', exact: true }).waitFor()
+    const want = ['Sleep', 'Feeds', 'Diapers', 'Growth', 'Solids', 'Pumping', 'Temperature', 'Medicine', 'Play and activities', 'Potty', 'Symptoms, visits and vaccines']
+    const missing = []
+    for (const w of want) if (!(await mom.page.getByRole('region', { name: w, exact: true }).count())) missing.push(w)
+    assert(!missing.length, `no chart for: ${missing.join(', ')}`)
+    const growth = await mom.page.getByRole('region', { name: 'Growth', exact: true }).textContent()
+    assert(/WHO percentile/.test(growth) && /\d+(st|nd|rd|th)/.test(growth), `no WHO percentile: ${growth.slice(0, 200)}`)
+    const sleep = mom.page.getByRole('region', { name: 'Sleep', exact: true })
+    await sleep.getByRole('button', { name: 'Show the numbers' }).click()
+    const rowsInTable = await sleep.locator('tbody tr').count()
+    assert(rowsInTable >= 7, `${rowsInTable} rows in the sleep table`)
+    await mom.page.getByRole('tablist', { name: 'History view' }).getByRole('tab', { name: 'Day' }).click()
+    await tab(mom, 'Today')
+    return `${want.length} charts, growth ${/(\d+(st|nd|rd|th))/.exec(growth)[1]} percentile`
+  }, { needs: ['L2'], shot: true })
+
   // ---------------------------------------------------------------- security
   await check('S1', 'A stranger with a family of their own sees none of ours', async () => {
     await signUp(stranger, 'Stranger', email('stranger'))
@@ -1395,11 +1439,145 @@ async function full() {
   }, { needs: ['X1'] })
 }
 
+// ============================================================================ reminders
+/** A stand-in for a phone's push inbox: registers with Mozilla's real push service over its
+ * WebSocket protocol (as Firefox does) and decrypts what arrives with the reference library. */
+async function pushInbox() {
+  const ws = new WebSocket('wss://push.services.mozilla.com/', 'push-notification')
+  const messages = []
+  const waiting = []
+  ws.addEventListener('message', (ev) => {
+    const m = JSON.parse(String(ev.data))
+    if (m.messageType === 'notification') {
+      ws.send(JSON.stringify({ messageType: 'ack', updates: [{ channelID: m.channelID, version: m.version }] }))
+      messages.push(m)
+    }
+    const i = waiting.findIndex((w) => w.type === m.messageType)
+    if (i >= 0) waiting.splice(i, 1)[0].resolve(m)
+  })
+  const replyTo = (type) =>
+    new Promise((resolve, reject) => {
+      waiting.push({ type, resolve })
+      setTimeout(() => reject(new Error(`no ${type} reply from Mozilla’s push service`)), 20_000)
+    })
+  await new Promise((resolve, reject) => {
+    ws.addEventListener('open', resolve, { once: true })
+    ws.addEventListener('error', () => reject(new Error('couldn’t connect to Mozilla’s push service')), { once: true })
+  })
+  ws.send(JSON.stringify({ messageType: 'hello', use_webpush: true, uaid: '', channelIDs: [] }))
+  const hello = await replyTo('hello')
+  assert(hello.status === 200, `push service hello: ${JSON.stringify(hello)}`)
+  return {
+    async register() {
+      const channelID = crypto.randomUUID()
+      ws.send(JSON.stringify({ messageType: 'register', channelID, key: VAPID }))
+      const r = await replyTo('register')
+      assert(r.status === 200 && r.pushEndpoint, `push service register: ${JSON.stringify(r)}`)
+      const ecdh = createECDH('prime256v1')
+      ecdh.generateKeys()
+      const auth = randomBytes(16)
+      return { channelID, endpoint: r.pushEndpoint, ecdh, auth, p256dh: ecdh.getPublicKey().toString('base64url'), authB64: auth.toString('base64url') }
+    },
+    /** Waits for a message on this channel that passes `test`, decrypted. */
+    async next(ch, test, timeout) {
+      const end = Date.now() + timeout
+      for (;;) {
+        for (const m of messages.filter((x) => x.channelID === ch.channelID)) {
+          const plain = ece.decrypt(Buffer.from(m.data, 'base64url'), { version: 'aes128gcm', privateKey: ch.ecdh, authSecret: ch.auth })
+          const json = JSON.parse(plain.toString('utf8'))
+          if (test(json)) return json
+        }
+        if (Date.now() > end) throw new Error(`nothing arrived in ${Math.round(timeout / 1000)} s (${messages.length} messages in all)`)
+        await new Promise((r) => setTimeout(r, 500))
+      }
+    },
+    close: () => ws.close(),
+  }
+}
+
+async function push() {
+  // A family in a time zone where it's early afternoon right now, so a nap is always coming up.
+  const utc = new Date().getUTCHours() + new Date().getUTCMinutes() / 60
+  let off = Math.round(13 - utc)
+  if (off > 14) off -= 24
+  if (off < -12) off += 24
+  const zone = off === 0 ? 'Etc/GMT' : off > 0 ? `Etc/GMT-${off}` : `Etc/GMT+${-off}`
+  const who = { email: `e2e-${RUN}-push@leela.test`, name: 'Pooja' }
+  let inbox = null
+  let ch = null
+  let api = null
+  const p = await phone('push-phone')
+  await check('N1', 'Reminders: turning them on saves this phone, and a test notification arrives through a real push service', async () => {
+    assert(VAPID, 'no VITE_VAPID_PUBLIC_KEY in .env.production')
+    inbox = await pushInbox()
+    ch = await inbox.register()
+    const r = await fetch(`${SUPA}/functions/v1/signup`, { method: 'POST', headers: { apikey: KEY, 'Content-Type': 'application/json' }, body: JSON.stringify({ email: who.email, password: PW, name: who.name }) })
+    assert(r.ok, `sign-up: ${r.status} ${await r.text()}`)
+    api = await apiAs(who.email)
+    const { data: fam, error } = await api.rpc('create_family', { p_family_name: `Push family ${RUN}`, p_display_name: who.name, p_timezone: zone })
+    assert(!error && fam?.ok, `family: ${error?.message ?? JSON.stringify(fam)}`)
+    // Six months old, the family's own wake windows, up from the night and one nap so far:
+    // nap 2 is due about ten minutes from now.
+    const kid = crypto.randomUUID()
+    const now = Date.now()
+    const birth = new Date(now - 184 * 86_400_000).toISOString().slice(0, 10)
+    const { error: kidErr } = await api.from('children').insert({ id: kid, family_id: fam.family_id, name: 'Kai', birth_date: birth, settings: { sweetspot: { naps: 3, custom: { first: 150, middle: 150, last: 180 } } } })
+    assert(!kidErr, `baby: ${kidErr?.message}`)
+    const iso = (minsAgo) => new Date(now - minsAgo * 60_000).toISOString()
+    const { error: sleepErr } = await api.from('events').insert([
+      { id: crypto.randomUUID(), family_id: fam.family_id, child_id: kid, type: 'sleep', started_at: iso(18 * 60), ended_at: iso(400), data: {} },
+      { id: crypto.randomUUID(), family_id: fam.family_id, child_id: kid, type: 'sleep', started_at: iso(260), ended_at: iso(140), data: {} },
+    ])
+    assert(!sleepErr, `sleeps: ${sleepErr?.message}`)
+
+    // The phone: notifications allowed, and its push subscription is the inbox above.
+    await p.ctx.grantPermissions(['notifications'], { origin: new URL(BASE).origin })
+    await p.ctx.addInitScript(({ endpoint, p256dh, auth, key }) => {
+      const bytes = Uint8Array.from(atob(key.replace(/-/g, '+').replace(/_/g, '/') + '='.repeat((4 - (key.length % 4)) % 4)), (c) => c.charCodeAt(0))
+      const sub = { endpoint, expirationTime: null, options: { userVisibleOnly: true, applicationServerKey: bytes.buffer }, toJSON: () => ({ endpoint, expirationTime: null, keys: { p256dh, auth } }), unsubscribe: async () => true }
+      let active = null
+      PushManager.prototype.subscribe = async () => (active = sub)
+      PushManager.prototype.getSubscription = async () => active
+    }, { endpoint: ch.endpoint, p256dh: ch.p256dh, auth: ch.authB64, key: VAPID })
+    await signIn(p, who.email)
+    await p.page.getByRole('heading', { name: 'Kai' }).waitFor({ timeout: 30_000 })
+    await p.page.getByRole('button', { name: /Open Sweet spot$/ }).click()
+    const sheet = p.page.getByRole('dialog', { name: 'Sweet spot' })
+    await sheet.getByRole('radio', { name: '15 min', exact: true }).click()
+    await sheet.getByText('Reminders are on for this phone.').waitFor({ timeout: 20_000 })
+    const { data: saved } = await api.from('push_subscriptions').select('endpoint, lead_min, disabled_at, family_id').eq('endpoint', ch.endpoint).single()
+    assert(saved?.lead_min === 15 && !saved.disabled_at && saved.family_id === fam.family_id, `saved: ${JSON.stringify(saved)}`)
+    await sheet.getByRole('button', { name: 'Send a test notification' }).click()
+    await sheet.getByText(/^Sent\./).waitFor({ timeout: 20_000 })
+    const msg = await inbox.next(ch, (m) => m.tag === 'leela-test', 30_000)
+    assert(msg.title === 'Leela reminders are on', `test title: ${msg.title}`)
+    return `${zone}; “${msg.title}: ${msg.body}”`
+  })
+  await check('N2', 'A reminder arrives before the sweet spot, sent by the every-minute schedule', async () => {
+    const msg = await inbox.next(ch, (m) => /sweet spot/.test(m.title ?? '') && m.tag !== 'leela-test', 180_000)
+    assert(/^Kai’s nap sweet spot (in \d+ min|is now)$/.test(msg.title), `title: ${msg.title}`)
+    assert(/^Sweet spot \d{1,2}:\d{2}/.test(msg.body), `body: ${msg.body}`)
+    assert(msg.url && msg.url.startsWith('http'), `url: ${msg.url}`)
+    return `“${msg.title}. ${msg.body}”`
+  }, { needs: ['N1'] })
+  await check('N3', 'Turning reminders off on the phone stops them', async () => {
+    const sheet = p.page.getByRole('dialog', { name: 'Sweet spot' })
+    await sheet.getByRole('radio', { name: 'Off', exact: true }).click()
+    await waitFor(async () => {
+      const { data } = await api.from('push_subscriptions').select('disabled_at').eq('endpoint', ch.endpoint).single()
+      return Boolean(data?.disabled_at)
+    }, 15_000)
+  }, { needs: ['N1'] })
+  inbox?.close()
+  if (api) await api.rpc('leave_family', { p_confirm: 'DELETE' }).catch(() => {})
+}
+
 // ============================================================================ run and report
 const started = Date.now()
 try {
   if (MODE === 'full') await full()
-  await canary()
+  if (MODE === 'full' || MODE === 'push') await push()
+  if (MODE !== 'push') await canary()
 } catch (e) {
   results.push({ id: 'X', name: 'The test run crashed', status: 'fail', note: String(e?.stack ?? e).slice(0, 800) })
 } finally {

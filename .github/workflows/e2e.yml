@@ -1,7 +1,8 @@
 # End-to-end tests against the live backend, in real browsers.
 # full: every feature, with two parents, a second phone, a grandparent and a stranger (about 20 minutes).
 # canary: checks that a long-running test family still has every entry it ever logged (about a minute).
-# Reports go to the e2e-results branch: full/report.md and canary/report.md.
+# push: only the Sweet spot reminder checks, delivered through Mozilla's real push service (a few minutes).
+# Reports go to the e2e-results branch: full/report.md, canary/report.md and push/report.md.
 name: End-to-end tests
 
 on:
@@ -10,7 +11,7 @@ on:
       mode:
         description: What to run
         type: choice
-        options: [full, canary]
+        options: [full, canary, push]
         default: full
   schedule:
     - cron: '37 4 * * *' # canary, every day
@@ -38,13 +39,13 @@ jobs:
       - run: npm ci
 
       - name: Install the browser and PDF tools
-        if: env.MODE == 'full'
+        if: env.MODE != 'canary'
         run: |
           npx playwright install --with-deps chromium
           sudo apt-get install -y -qq poppler-utils > /dev/null
 
       - name: Build and serve the app
-        if: env.MODE == 'full'
+        if: env.MODE != 'canary'
         run: |
           npm run build
           nohup npx vite preview --port 4173 --strictPort > preview.log 2>&1 &
@@ -123,7 +124,7 @@ jobs:
             git clone -q --depth 1 --branch e2e-results "$url" "$work/old"
           fi
           mkdir -p "$work/new/$MODE"
-          for m in full canary; do
+          for m in full canary push; do
             if [ "$m" != "$MODE" ] && [ -d "$work/old/$m" ]; then cp -r "$work/old/$m" "$work/new/$m"; fi
           done
           cp -r e2e-results/. "$work/new/$MODE/" 2>/dev/null || true
