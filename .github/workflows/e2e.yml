@@ -71,6 +71,16 @@ jobs:
             openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -in .canary/canary.json.enc -out .canary/canary.json -pass env:CANARY_KEY
           fi
 
+      - name: Work out the app's public address
+        env:
+          DOMAIN: ${{ vars.LEELA_DOMAIN }}
+        run: |
+          name="${GITHUB_REPOSITORY#*/}"
+          if [ -n "$DOMAIN" ]; then url="https://$DOMAIN/"
+          elif [[ "$name" == *.github.io ]]; then url="https://$name/"
+          else url="https://${GITHUB_REPOSITORY_OWNER}.github.io/$name/"; fi
+          echo "LIVE_URL=$url" >> "$GITHUB_ENV"
+
       - name: Run the tests
         id: e2e
         continue-on-error: true
