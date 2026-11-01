@@ -50,9 +50,11 @@ async function config(admin: Db): Promise<{ vapid: Vapid; cronSecret: string }> 
   return { vapid: { publicKey: data.vapid_public, privateJwk: JSON.parse(data.vapid_private), subject: SUBJECT }, cronSecret: data.cron_secret }
 }
 
-async function deliver(admin: Db, sub: Sub, message: Record<string, unknown>, vapid: Vapid, topic?: string) {
+async function deliver(admin: Db, sub: Sub, message: Record<string, unknown>, vapid: Vapid) {
   try {
-    const r = await sendPush(sub, message, vapid, { ttl: 1800, urgency: 'high', topic })
+    // No Topic header: Mozilla's service holds topic messages back from a connected phone. The
+    // notification's tag already replaces an older reminder on the phone.
+    const r = await sendPush(sub, message, vapid, { ttl: 1800, urgency: 'high' })
     if (r.gone) {
       await admin.from('push_subscriptions').update({ disabled_at: new Date().toISOString(), disabled_reason: `expired (${r.status})` }).eq('id', sub.id)
     } else if (r.status < 300) {
@@ -121,7 +123,7 @@ async function remind(admin: Db, vapid: Vapid) {
         tag: `sweetspot-${kid.id}`,
         url: sub.app_url ?? SUBJECT,
       }
-      const status = await deliver(admin, sub, message, vapid, `sweetspot-${String(kid.id).slice(0, 18)}`)
+      const status = await deliver(admin, sub, message, vapid)
       await admin.from('push_sent').update({ status }).match({ subscription_id: sub.id, child_id: kid.id, slot })
       if (status >= 200 && status < 300) sent++
     }

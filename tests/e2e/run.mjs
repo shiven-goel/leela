@@ -1487,6 +1487,10 @@ async function pushInbox() {
   assert(ws, `couldn’t connect to Mozilla’s push service. ${tries.join('; ')}`)
   const messages = []
   const waiting = []
+  let closed = null
+  ws.addEventListener('close', (e) => (closed = `closed ${e?.code ?? ''} ${e?.reason ?? ''}`.trim()))
+  // Firefox pings the service now and then; so does this inbox, so the connection stays up.
+  const keepAlive = setInterval(() => ws.readyState === 1 && ws.send('{}'), 20_000)
   ws.addEventListener('message', (ev) => {
     const m = JSON.parse(String(ev.data))
     if (m.messageType === 'notification') {
@@ -1524,11 +1528,14 @@ async function pushInbox() {
           const json = JSON.parse(plain.toString('utf8'))
           if (test(json)) return json
         }
-        if (Date.now() > end) throw new Error(`nothing arrived in ${Math.round(timeout / 1000)} s (${messages.length} messages in all)`)
+        if (Date.now() > end) throw new Error(`nothing arrived in ${Math.round(timeout / 1000)} s (${messages.length} messages in all${closed ? `; the push service connection ${closed}` : ''})`)
         await new Promise((r) => setTimeout(r, 500))
       }
     },
-    close: () => ws.close(),
+    close: () => {
+      clearInterval(keepAlive)
+      ws.close()
+    },
   }
 }
 
@@ -1576,8 +1583,12 @@ async function push() {
       Notification.requestPermission = async () => 'granted'
       const bytes = Uint8Array.from(atob(key.replace(/-/g, '+').replace(/_/g, '/') + '='.repeat((4 - (key.length % 4)) % 4)), (c) => c.charCodeAt(0))
       const sub = { endpoint, expirationTime: null, options: { userVisibleOnly: true, applicationServerKey: bytes.buffer }, toJSON: () => ({ endpoint, expirationTime: null, keys: { p256dh, auth } }), unsubscribe: async () => true }
-      let active = null
-      PushManager.prototype.subscribe = async () => (active = sub)
+      // Survives a reload, as a real subscription would.
+      let active = sessionStorage.getItem('e2e-subscribed') ? sub : null
+      PushManager.prototype.subscribe = async () => {
+        sessionStorage.setItem('e2e-subscribed', '1')
+        return (active = sub)
+      }
       PushManager.prototype.getSubscription = async () => active
     }, { endpoint: ch.endpoint, p256dh: ch.p256dh, auth: ch.authB64, key: VAPID })
     await signIn(p, who.email)
@@ -1603,6 +1614,9 @@ async function push() {
   }, { needs: ['N1'] })
   await check('N3', 'Turning reminders off on the phone stops them', async () => {
     const sheet = p.page.getByRole('dialog', { name: 'Sweet spot' })
+    if (!(await sheet.count())) await p.page.getByRole('button', { name: /Open Sweet spot$/ }).click()
+    // The phone shows the reminder as on, from the server, before turning it off.
+    await sheet.getByRole('radio', { name: '15 min', exact: true, checked: true }).waitFor({ timeout: 15_000 })
     await sheet.getByRole('radio', { name: 'Off', exact: true }).click()
     await waitFor(async () => {
       const { data } = await api.from('push_subscriptions').select('disabled_at').eq('endpoint', ch.endpoint).single()
