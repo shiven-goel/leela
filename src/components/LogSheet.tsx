@@ -1,7 +1,7 @@
 import clsx from 'clsx'
 import { Trash, Warning } from '@phosphor-icons/react'
 import { useEffect, useMemo, useState } from 'react'
-import { deleteEvent, editEvent, logEvent, runningTimer, startTimer } from '../lib/actions'
+import { deleteEvent, editEvent, logEvent, runningTimer, startTimer, stopTimer } from '../lib/actions'
 import {
   ACTIVITY_KINDS,
   COMMON_ALLERGENS,
@@ -14,38 +14,55 @@ import {
 import { eventTitle } from '../lib/describe'
 import { activeChild, myPrefs, useLeela } from '../lib/store'
 import { durationText, fmtTime } from '../lib/time'
+import { type Range, type When, birthStart, checkRange, issueText, sidesTooLong, usualLength, whenAt, whenIsNow, whenText } from '../lib/timerange'
 import type { EventData, EventType, LeelaEvent } from '../lib/types'
 import { CM_PER_IN, FEVER_C, cToF, fToC, lengthUnit, tempUnit } from '../lib/units'
 import { PhotoPicker } from './PhotoPicker'
 import { Sheet } from './Sheet'
+import { QuickTime, TimeField, TimeRange } from './TimeField'
 import { Button, Choices, Field, MultiChips, Stepper, TextArea, TextInput, Toggle } from './ui'
-import { WhenPicker } from './WhenPicker'
 
 const MIN = 60_000
 
+/** Entries that last a while get a start and an end, both on a clock. The rest happen at a moment. */
+const RANGED = new Set<EventType>(['sleep', 'nursing', 'bottle', 'solids', 'pump', 'activity'])
+/** The end can be left out of these (a quick bottle often isn't timed). */
+const END_OPTIONAL = new Set<EventType>(['bottle', 'solids', 'pump', 'activity'])
+
 interface Draft {
-  start: Date
-  end: Date | null
+  start: number
+  end: number | null
+  /** The timer keeps running: a running timer being edited, or a past sleep that's still going on. */
   ongoing: boolean
   data: EventData
   notes: string
   photos: string[]
-  durationMin?: number
   leftMin?: number
   rightMin?: number
 }
 
+/** Side seconds to save: the exact ones from a timer, unless the minutes shown were changed. */
+function sideSeconds(saved: number | undefined, minutes: number | undefined): number {
+  if (saved !== undefined && Math.round(saved / 60) === (minutes ?? 0)) return saved
+  return Math.round((minutes ?? 0) * 60)
+}
+
 function draftFrom(edit: LeelaEvent | undefined, type: EventType, defaultAt: number | undefined, last: LeelaEvent | undefined): Draft {
   if (edit) {
-    const dur = edit.ended_at ? Math.round((Date.parse(edit.ended_at) - Date.parse(edit.started_at)) / MIN) : undefined
+    const start = Date.parse(edit.started_at)
+    let end = edit.ended_at ? Date.parse(edit.ended_at) : null
+    // A breastfeed saved before it had its own end: it ended when its sides did.
+    if (end === null && edit.type === 'nursing' && !edit.timer_state) {
+      const secs = (edit.data.left_s ?? 0) + (edit.data.right_s ?? 0) || (edit.data.total_s ?? 0)
+      if (secs > 0) end = start + secs * 1000
+    }
     return {
-      start: new Date(edit.started_at),
-      end: edit.ended_at ? new Date(edit.ended_at) : null,
+      start,
+      end,
       ongoing: Boolean(edit.timer_state),
       data: { ...edit.data },
       notes: edit.notes ?? '',
       photos: [...edit.photo_paths],
-      durationMin: dur,
       leftMin: edit.data.left_s !== undefined ? Math.round(edit.data.left_s / 60) : undefined,
       rightMin: edit.data.right_s !== undefined ? Math.round(edit.data.right_s / 60) : undefined,
     }
@@ -67,9 +84,12 @@ function draftFrom(edit: LeelaEvent | undefined, type: EventType, defaultAt: num
   // The unit picker shows ml until changed, so that's what gets saved.
   if (type === 'medicine') data.unit = 'ml'
   if (type === 'symptom') data.kind = 'symptom'
+  // A past entry starts out ending now (or at the day picked in History), as long as the last one.
+  const timed = RANGED.has(type) && !END_OPTIONAL.has(type)
+  const withEnd = timed || type === 'pump' || type === 'activity'
   return {
-    start: new Date(type === 'sleep' ? at - 60 * MIN : at),
-    end: type === 'sleep' ? new Date(at) : null,
+    start: withEnd ? at - usualLength(type, last) : at,
+    end: withEnd ? at : null,
     ongoing: false,
     data,
     notes: '',
@@ -111,6 +131,9 @@ export function LogSheet({
   const [draft, setDraft] = useState<Draft>(() => draftFrom(edit, type, defaultAt, last))
   const [details, setDetails] = useState(Boolean(edit))
   const [foodInput, setFoodInput] = useState('')
+  // When a timer started from here began: now, or earlier.
+  const [timerWhen, setTimerWhen] = useState<When>({ min: 0 })
+  const [pickTimerStart, setPickTimerStart] = useState(false)
 
   useEffect(() => {
     if (open) {
@@ -120,7 +143,11 @@ export function LogSheet({
   }, [open, edit, initialType])
 
   useEffect(() => {
-    if (open) setDraft(draftFrom(edit, type, defaultAt, last))
+    if (open) {
+      setDraft(draftFrom(edit, type, defaultAt, last))
+      setTimerWhen({ min: 0 })
+      setPickTimerStart(false)
+    }
     // Only reset when the sheet opens or the type changes, not on every data update.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, type, edit?.id])
@@ -131,18 +158,48 @@ export function LogSheet({
   const childId = child?.id ?? null
   const set = (p: Partial<Draft>) => setDraft((d) => ({ ...d, ...p }))
   const setData = (p: EventData) => setDraft((d) => ({ ...d, data: { ...d.data, ...p } }))
-  const minDate = child?.birth_date ?? null
+  const minDate = meta.familyLevel ? null : (child?.birth_date ?? null)
+  const now = Date.now()
+  const running = !edit && meta.timer ? runningTimer(type, childId) : undefined
+  const runningEdit = Boolean(edit?.timer_state)
 
-  // ---------------------------------------------------------------- warnings
+  // ---------------------------------------------------------------- which times this form has
+  const isNursing = type === 'nursing'
+  // While a breastfeed timer runs, a past feed can still be logged by hand.
+  const manualNursing = isNursing && (details || Boolean(edit) || Boolean(running))
+  const ranged = RANGED.has(type) && (!isNursing || manualNursing)
+  const showSides = manualNursing && !runningEdit
+  // An old entry saved without an end can stay that way.
+  const endOptional = END_OPTIONAL.has(type) || Boolean(edit && !edit.timer_state && !edit.ended_at && draft.end === null)
+  const range: Range = { start: draft.start, end: draft.end }
+  const setRange = (r: Range) => set({ start: r.start, end: r.end })
+  const len = usualLength(type, last)
+  const setOngoing = (v: boolean) => setDraft((d) => ({ ...d, ongoing: v, end: v ? d.end : (d.end ?? Date.now()) }))
+  const earliest = meta.familyLevel || type === 'note' || type === 'contraction' ? null : birthStart(child?.birth_date, tz)
+
+  // ---------------------------------------------------------------- problems that stop saving
+  let issue: string | null = null
+  if (ranged) {
+    const i = checkRange({ start: draft.start, end: draft.ongoing ? null : draft.end }, now, { endRequired: !draft.ongoing && !endOptional, earliest })
+    if (i) issue = issueText(i, child?.name)
+  } else if (type !== 'contraction') {
+    const i = checkRange({ start: draft.start, end: null }, now, { earliest })
+    if (i) issue = issueText(i, child?.name, true)
+  }
+  const sidesMs = ((draft.leftMin ?? 0) + (draft.rightMin ?? 0)) * MIN
+  if (!issue && showSides && draft.end !== null && sidesTooLong(sidesMs / 1000, 0, draft.end - draft.start)) {
+    issue = `Left and right add up to ${durationText(sidesMs)}, but the feed lasted ${durationText(draft.end - draft.start)}.`
+  }
+  const blocking = Boolean(issue)
+
+  // ---------------------------------------------------------------- warnings (saving still allowed)
   const warnings: string[] = []
-  const startMs = draft.start.getTime()
-  const endMs = draft.end?.getTime()
-  if (startMs > Date.now() + 5 * MIN) warnings.push('This is set in the future.')
+  const shownEnd = draft.ongoing ? null : draft.end
   if (type === 'bottle' && (draft.data.amount_ml ?? 0) > 350) warnings.push('That’s a big bottle. Double-check the amount.')
-  if (type === 'sleep' && endMs && endMs - startMs > 14 * 60 * MIN) warnings.push('That’s a sleep of over 14 hours.')
+  if (type === 'sleep' && shownEnd !== null && shownEnd - draft.start > 14 * 60 * MIN) warnings.push('That’s a sleep of over 14 hours.')
   if (type === 'sleep' && childId) {
-    const s0 = startMs
-    const s1 = draft.ongoing ? Date.now() : endMs ?? startMs
+    const s0 = draft.start
+    const s1 = draft.ongoing ? now : (shownEnd ?? draft.start)
     const clash = Object.values(events).find(
       (e) =>
         e.type === 'sleep' &&
@@ -158,7 +215,6 @@ export function LogSheet({
       )
     }
   }
-  const blocking = Boolean(endMs !== undefined && endMs < startMs)
 
   // ---------------------------------------------------------------- save
   const close = () => onClose()
@@ -166,45 +222,65 @@ export function LogSheet({
   const save = async () => {
     if (blocking) return
     let data: EventData = { ...draft.data }
-    let ended: string | null = draft.end ? draft.end.toISOString() : null
-    if (type === 'nursing') {
-      data = { ...data, left_s: Math.round((draft.leftMin ?? 0) * 60), right_s: Math.round((draft.rightMin ?? 0) * 60) }
-      const total = ((draft.leftMin ?? 0) + (draft.rightMin ?? 0)) * MIN
-      ended = new Date(startMs + total).toISOString()
+    const startedAt = new Date(draft.start).toISOString()
+    let endedAt: string | null
+    if (ranged) {
+      endedAt = draft.ongoing || draft.end === null ? null : new Date(draft.end).toISOString()
+    } else if (edit?.ended_at) {
+      // A moment with an end of its own (a contraction): it moves with the start.
+      endedAt = new Date(Date.parse(edit.ended_at) + draft.start - Date.parse(edit.started_at)).toISOString()
+    } else {
+      endedAt = null
     }
-    if ((type === 'activity' || type === 'pump') && draft.durationMin) {
-      ended = new Date(startMs + draft.durationMin * MIN).toISOString()
+    if (showSides) {
+      if (draft.leftMin !== undefined || draft.rightMin !== undefined) {
+        data = { ...data, left_s: sideSeconds(edit?.data.left_s, draft.leftMin), right_s: sideSeconds(edit?.data.right_s, draft.rightMin), total_s: undefined }
+      } else {
+        // No sides: the feed counts for its whole length.
+        data = { ...data, left_s: undefined, right_s: undefined, total_s: draft.end !== null ? Math.round((draft.end - draft.start) / 1000) : data.total_s }
+      }
     }
     if (type === 'solids' && foodInput.trim()) {
       data.foods = [...(data.foods ?? []), { name: foodInput.trim() }]
     }
     const notes = draft.notes.trim() ? draft.notes.trim() : null
 
-    if (edit) {
-      await editEvent(
-        edit.id,
-        {
-          started_at: draft.start.toISOString(),
-          ended_at: edit.timer_state ? null : ended,
-          data,
-          notes,
-          photo_paths: draft.photos,
-        },
-        { base: edit.updated_at },
-      )
+    if (edit?.timer_state) {
+      await editEvent(edit.id, { started_at: startedAt, data, notes, photo_paths: draft.photos }, { base: edit.updated_at })
+      // "Still asleep" switched off: the timer stops at the time picked.
+      if (!draft.ongoing && draft.end !== null) await stopTimer(edit.id, new Date(draft.end).toISOString())
+      else useLeela.getState().toast({ text: 'Changes saved.' })
+    } else if (edit) {
+      await editEvent(edit.id, { started_at: startedAt, ended_at: endedAt, data, notes, photo_paths: draft.photos }, { base: edit.updated_at })
       useLeela.getState().toast({ text: 'Changes saved.' })
     } else if (type === 'sleep' && draft.ongoing) {
-      await startTimer('sleep', childId, { startedAt: draft.start.toISOString(), data })
+      await startTimer('sleep', childId, { startedAt, data })
     } else {
-      await logEvent({ type, childId, startedAt: draft.start.toISOString(), endedAt: ended, data, notes, photoPaths: draft.photos })
+      await logEvent({ type, childId, startedAt, endedAt, data, notes, photoPaths: draft.photos })
     }
     close()
   }
 
   const startNow = async (extra?: { side?: 'left' | 'right' }) => {
-    await startTimer(type, childId, { side: extra?.side, data: draft.data, startedAt: draft.start.getTime() < Date.now() - MIN ? draft.start.toISOString() : undefined })
+    const at = whenAt(timerWhen, Date.now())
+    await startTimer(type, childId, { side: extra?.side, data: draft.data, startedAt: whenIsNow(timerWhen) ? undefined : new Date(at).toISOString() })
     close()
   }
+  const fromText = whenIsNow(timerWhen) ? '' : ` from ${whenText(whenAt(timerWhen, now), tz, now)}`
+  const timerStartPicker = pickTimerStart ? (
+    <QuickTime label="Started" value={timerWhen} onChange={setTimerWhen} tz={tz} now={now} tone={tone} />
+  ) : (
+    <div className="mb-3">
+      <button type="button" onClick={() => setPickTimerStart(true)} className="min-h-11 text-[15px] font-semibold text-ink-2 underline underline-offset-4">
+        Started earlier? Pick the time
+      </button>
+    </div>
+  )
+  const orPast = (text: string) => (
+    <div className="mb-5 flex items-center gap-3 text-[14px] font-semibold text-ink-3">
+      <span className="h-px flex-1 bg-line" aria-hidden="true" /> {text} <span className="h-px flex-1 bg-line" aria-hidden="true" />
+    </div>
+  )
 
   const remove = async () => {
     if (!edit) return
@@ -218,11 +294,11 @@ export function LogSheet({
       setData({ kind })
       return
     }
-    await logEvent({ type: 'diaper', childId, startedAt: draft.start.toISOString(), data: { kind } })
+    if (blocking) return
+    await logEvent({ type: 'diaper', childId, startedAt: new Date(draft.start).toISOString(), data: { kind } })
     close()
   }
 
-  const running = !edit && meta.timer ? runningTimer(type, childId) : undefined
   const title = edit ? `Edit ${eventTitle(edit, family).toLowerCase()}` : group ? 'Log a feed' : meta.label
 
   const lenUnit = lengthUnit(prefs)
@@ -232,7 +308,35 @@ export function LogSheet({
   const tempShown = draft.data.temp_c === undefined ? undefined : tUnit === 'f' ? Number(cToF(draft.data.temp_c).toFixed(1)) : draft.data.temp_c
   const fever = type === 'temperature' && (draft.data.temp_c ?? 0) >= FEVER_C
 
-  const showSave = !(type === 'diaper' && !details && !edit) && type !== 'contraction'
+  /** One moment, picked on a clock (with shortcuts). */
+  const when = (label: string) => <TimeField label={label} value={draft.start} onChange={(start) => set({ start })} tz={tz} minDate={minDate} />
+  /** A start and an end, picked on a clock. */
+  const times = (labels: { start: string; end: string; verb?: string; still?: string }) => (
+    <TimeRange
+      startLabel={labels.start}
+      endLabel={labels.end}
+      verb={labels.verb}
+      range={range}
+      onChange={setRange}
+      tz={tz}
+      minDate={minDate}
+      defaultLen={len}
+      endOptional={endOptional}
+      tone={tone}
+      ongoing={labels.still && (runningEdit || (type === 'sleep' && !edit)) ? { label: labels.still, value: draft.ongoing, onChange: setOngoing } : undefined}
+    />
+  )
+
+  const showSave = !(type === 'diaper' && !details && !edit) && type !== 'contraction' && !(isNursing && !manualNursing)
+  const saveLabel = edit
+    ? runningEdit && !draft.ongoing
+      ? `Stop and save`
+      : 'Save changes'
+    : type === 'sleep' && draft.ongoing
+      ? 'Start sleep'
+      : warnings.length
+        ? 'Save anyway'
+        : meta.action
   const footer = (
     <div className="flex flex-col gap-2">
       {warnings.length > 0 && (
@@ -241,7 +345,11 @@ export function LogSheet({
           <span>{warnings.join(' ')}</span>
         </div>
       )}
-      {blocking && <p className="text-[14px] font-semibold text-[var(--health)]">The end can’t be before the start.</p>}
+      {issue && (
+        <p role="alert" className="text-[14px] font-semibold text-[var(--health)]">
+          {issue}
+        </p>
+      )}
       <div className="flex gap-2">
         {edit && (
           <Button variant="danger" onClick={() => void remove()} aria-label="Delete entry" className="w-14 px-0">
@@ -250,7 +358,7 @@ export function LogSheet({
         )}
         {showSave && (
           <Button tone={tone} className="flex-1" onClick={() => void save()} disabled={blocking}>
-            {edit ? 'Save changes' : type === 'sleep' && draft.ongoing ? 'Start sleep' : warnings.length ? 'Save anyway' : meta.action}
+            {saveLabel}
           </Button>
         )}
       </div>
@@ -258,7 +366,7 @@ export function LogSheet({
   )
 
   return (
-    <Sheet open={open} onClose={close} title={title} tone={tone} footer={showSave || edit ? footer : undefined}>
+    <Sheet open={open} onClose={close} title={title} tone={tone} footer={showSave || edit || (type === 'diaper' && issue) ? footer : undefined}>
       {group && !edit && (
         <div className="mb-5 grid grid-cols-3 gap-1 rounded-2xl bg-card-2 p-1 ring-1 ring-line" role="tablist">
           {group.map((g) => (
@@ -285,33 +393,7 @@ export function LogSheet({
       {/* ------------------------------------------------------------ SLEEP */}
       {type === 'sleep' && (
         <>
-          <WhenPicker label="Fell asleep" value={draft.start} onChange={(d) => set({ start: d })} timeZone={tz} minDate={minDate} />
-          {!edit?.timer_state && (
-            <>
-              {!edit && (
-                <Toggle
-                  label="Still asleep"
-                  checked={draft.ongoing}
-                  onChange={(v) => set({ ongoing: v, end: v ? null : new Date(Math.min(Date.now(), startMs + 60 * MIN)) })}
-                  tone="sleep"
-                />
-              )}
-              {!draft.ongoing && (
-                <div className="mt-5">
-                  <WhenPicker
-                    label="Woke up"
-                    value={draft.end ?? new Date(Math.min(Date.now(), startMs + 60 * MIN))}
-                    onChange={(d) => set({ end: d })}
-                    timeZone={tz}
-                    minDate={minDate}
-                  />
-                  {draft.end && draft.end.getTime() >= startMs && (
-                    <p className="-mt-3 mb-5 text-[15px] text-ink-2">Slept {durationText(draft.end.getTime() - startMs)}</p>
-                  )}
-                </div>
-              )}
-            </>
-          )}
+          {times({ start: 'Fell asleep', end: 'Woke up', verb: 'Slept', still: 'Still asleep' })}
           <Field label="Where">
             <Choices options={SLEEP_PLACES} value={draft.data.place} onChange={(v) => setData({ place: v })} tone="sleep" columns={2} allowNone />
           </Field>
@@ -338,7 +420,7 @@ export function LogSheet({
               <div className="mb-2 text-[15px] font-semibold text-ink-2">
                 Start a timer{last?.data.last_side ? `, last feed ended on the ${last.data.last_side}` : ''}
               </div>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="mb-3 grid grid-cols-2 gap-2">
                 {(['left', 'right'] as const).map((side) => {
                   const suggested = last?.data.last_side ? last.data.last_side !== side : side === 'left'
                   return (
@@ -347,31 +429,54 @@ export function LogSheet({
                       type="button"
                       onClick={() => void startNow({ side })}
                       className={clsx(
-                        'flex h-20 flex-col items-center justify-center rounded-3xl text-[17px] font-bold capitalize',
+                        'flex h-20 flex-col items-center justify-center rounded-3xl px-2 text-[17px] font-bold capitalize',
                         suggested ? 'text-white' : 'bg-card-2 ring-1 ring-line',
                       )}
                       style={suggested ? { background: 'var(--feed)' } : undefined}
                     >
                       Start {side}
-                      {suggested && <span className="text-[13px] font-medium opacity-90">Suggested</span>}
+                      {fromText ? (
+                        <span className="text-[13px] font-medium normal-case opacity-90">{fromText.trim()}</span>
+                      ) : (
+                        suggested && <span className="text-[13px] font-medium opacity-90">Suggested</span>
+                      )}
                     </button>
                   )
                 })}
               </div>
-              <button type="button" onClick={() => setDetails((d) => !d)} className="mt-4 text-[15px] font-semibold text-ink-2 underline underline-offset-4">
-                {details ? 'Hide manual entry' : 'Log a past feed instead'}
-              </button>
+              {timerStartPicker}
+              <div>
+                <button type="button" onClick={() => setDetails((d) => !d)} className="min-h-11 text-[15px] font-semibold text-ink-2 underline underline-offset-4">
+                  {details ? 'Hide manual entry' : 'Log a past feed instead'}
+                </button>
+              </div>
             </div>
           )}
-          {(details || edit) && !edit?.timer_state && (
+          {manualNursing && (
             <>
-              <WhenPicker label="Started" value={draft.start} onChange={(d) => set({ start: d })} timeZone={tz} minDate={minDate} />
-              <Field label="Left side">
-                <Stepper value={draft.leftMin} onChange={(v) => set({ leftMin: v })} step={1} unit="min" label="left side minutes" />
-              </Field>
-              <Field label="Right side">
-                <Stepper value={draft.rightMin} onChange={(v) => set({ rightMin: v })} step={1} unit="min" label="right side minutes" />
-              </Field>
+              {times({ start: 'Started', end: 'Ended', verb: 'Fed for', still: 'Still feeding' })}
+              {showSides && (
+                <>
+                  <Field label="Left side" hint={draft.leftMin === undefined && draft.rightMin === undefined ? 'Sides are optional.' : undefined}>
+                    <Stepper value={draft.leftMin} onChange={(v) => set({ leftMin: v })} step={1} unit="min" label="left side minutes" />
+                  </Field>
+                  <Field label="Right side">
+                    <Stepper value={draft.rightMin} onChange={(v) => set({ rightMin: v })} step={1} unit="min" label="right side minutes" />
+                  </Field>
+                  <Field label="Finished on">
+                    <Choices
+                      options={[
+                        { id: 'left', label: 'Left' },
+                        { id: 'right', label: 'Right' },
+                      ]}
+                      value={draft.data.last_side}
+                      onChange={(v) => setData({ last_side: v })}
+                      tone="feed"
+                      allowNone
+                    />
+                  </Field>
+                </>
+              )}
             </>
           )}
         </>
@@ -380,7 +485,7 @@ export function LogSheet({
       {/* ------------------------------------------------------------ BOTTLE */}
       {type === 'bottle' && (
         <>
-          <WhenPicker label="When" value={draft.start} onChange={(d) => set({ start: d })} timeZone={tz} minDate={minDate} />
+          {times({ start: 'Started', end: 'Ended' })}
           <Field label="Amount">
             <Stepper value={draft.data.amount_ml} onChange={(v) => setData({ amount_ml: v })} step={10} max={1000} unit="ml" label="amount" />
           </Field>
@@ -401,36 +506,38 @@ export function LogSheet({
 
       {/* ------------------------------------------------------------ SOLIDS */}
       {type === 'solids' && (
-        <SolidsFields draft={draft} setData={setData} foodInput={foodInput} setFoodInput={setFoodInput} events={Object.values(events)} childId={childId} tz={tz} minDate={minDate} set={set} />
+        <>
+          {times({ start: 'Started', end: 'Ended' })}
+          <SolidsFields draft={draft} setData={setData} foodInput={foodInput} setFoodInput={setFoodInput} events={Object.values(events)} childId={childId} set={set} />
+        </>
       )}
 
       {/* ------------------------------------------------------------ PUMP */}
       {type === 'pump' && (
         <>
           {!edit && !running && (
-            <Button tone="pump" className="mb-4 w-full" onClick={() => void startNow()}>
-              Start pumping timer
-            </Button>
+            <>
+              <Button tone="pump" className="mb-3 w-full" onClick={() => void startNow()}>
+                Start pumping timer{fromText}
+              </Button>
+              {timerStartPicker}
+              {orPast('or log a past session')}
+            </>
           )}
-          <WhenPicker label="Started" value={draft.start} onChange={(d) => set({ start: d })} timeZone={tz} />
+          {times({ start: 'Started', end: 'Ended', still: 'Still pumping' })}
           <Field label="Left">
             <Stepper value={draft.data.left_ml} onChange={(v) => setData({ left_ml: v })} step={10} unit="ml" label="left amount" />
           </Field>
           <Field label="Right">
             <Stepper value={draft.data.right_ml} onChange={(v) => setData({ right_ml: v })} step={10} unit="ml" label="right amount" />
           </Field>
-          {!edit?.timer_state && (
-            <Field label="How long">
-              <Stepper value={draft.durationMin} onChange={(v) => set({ durationMin: v })} step={5} unit="min" label="duration" />
-            </Field>
-          )}
         </>
       )}
 
       {/* ------------------------------------------------------------ DIAPER */}
       {type === 'diaper' && (
         <>
-          <WhenPicker label="When" value={draft.start} onChange={(d) => set({ start: d })} timeZone={tz} minDate={minDate} />
+          {when('When')}
           <div className="mb-5 grid grid-cols-2 gap-2">
             {[
               { id: 'wet', label: 'Wet' },
@@ -454,7 +561,7 @@ export function LogSheet({
             })}
           </div>
           {!edit && (
-            <button type="button" onClick={() => setDetails((d) => !d)} className="mb-4 text-[15px] font-semibold text-ink-2 underline underline-offset-4">
+            <button type="button" onClick={() => setDetails((d) => !d)} className="mb-4 min-h-11 text-[15px] font-semibold text-ink-2 underline underline-offset-4">
               {details ? 'Hide details' : 'Add color, texture or rash'}
             </button>
           )}
@@ -500,7 +607,7 @@ export function LogSheet({
       {/* ------------------------------------------------------------ POTTY */}
       {type === 'potty' && (
         <>
-          <WhenPicker label="When" value={draft.start} onChange={(d) => set({ start: d })} timeZone={tz} minDate={minDate} />
+          {when('When')}
           <Field label="What happened">
             <Choices
               options={[
@@ -530,7 +637,7 @@ export function LogSheet({
       {/* ------------------------------------------------------------ GROWTH */}
       {type === 'growth' && (
         <>
-          <WhenPicker label="Measured" value={draft.start} onChange={(d) => set({ start: d })} timeZone={tz} minDate={minDate} />
+          {when('Measured')}
           <Field label="Weight">
             <Stepper value={draft.data.weight_kg} onChange={(v) => setData({ weight_kg: v })} step={0.05} decimals={2} max={40} unit="kg" label="weight" />
           </Field>
@@ -546,7 +653,7 @@ export function LogSheet({
       {/* ------------------------------------------------------------ TEMPERATURE */}
       {type === 'temperature' && (
         <>
-          <WhenPicker label="When" value={draft.start} onChange={(d) => set({ start: d })} timeZone={tz} minDate={minDate} />
+          {when('When')}
           <Field label="Temperature">
             <Stepper
               value={tempShown}
@@ -571,12 +678,17 @@ export function LogSheet({
       )}
 
       {/* ------------------------------------------------------------ MEDICINE */}
-      {type === 'medicine' && <MedicineFields draft={draft} setData={setData} set={set} events={Object.values(events)} childId={childId} tz={tz} minDate={minDate} />}
+      {type === 'medicine' && (
+        <>
+          {when('Given')}
+          <MedicineFields draft={draft} setData={setData} events={Object.values(events)} childId={childId} tz={tz} />
+        </>
+      )}
 
       {/* ------------------------------------------------------------ SYMPTOMS */}
       {type === 'symptom' && (
         <>
-          <WhenPicker label="When" value={draft.start} onChange={(d) => set({ start: d })} timeZone={tz} minDate={minDate} />
+          {when('When')}
           <Field label="What is it">
             <Choices
               options={[
@@ -607,16 +719,15 @@ export function LogSheet({
             <Choices options={ACTIVITY_KINDS} value={draft.data.kind as 'tummy' | undefined} onChange={(v) => setData({ kind: v })} tone="activity" columns={2} />
           </Field>
           {!edit && !running && (
-            <Button tone="activity" className="mb-5 w-full" onClick={() => void startNow()} disabled={!draft.data.kind}>
-              Start timer
-            </Button>
+            <>
+              <Button tone="activity" className="mb-3 w-full" onClick={() => void startNow()} disabled={!draft.data.kind}>
+                Start timer{fromText}
+              </Button>
+              {timerStartPicker}
+              {orPast('or log a past one')}
+            </>
           )}
-          <WhenPicker label="Started" value={draft.start} onChange={(d) => set({ start: d })} timeZone={tz} minDate={minDate} />
-          {!edit?.timer_state && (
-            <Field label="How long">
-              <Stepper value={draft.durationMin} onChange={(v) => set({ durationMin: v })} step={5} unit="min" label="duration" />
-            </Field>
-          )}
+          {times({ start: 'Started', end: 'Ended', still: 'Still going' })}
         </>
       )}
 
@@ -627,7 +738,7 @@ export function LogSheet({
             <Choices options={MILESTONE_KINDS} value={draft.data.kind as 'smile' | undefined} onChange={(v) => setData({ kind: v, label: undefined })} tone="milestone" columns={3} />
           </Field>
           <TextInput label="Or name it yourself" value={draft.data.label ?? ''} onChange={(e) => setData({ label: e.target.value, kind: e.target.value ? undefined : draft.data.kind })} placeholder="e.g. First trip to the beach" />
-          <WhenPicker label="When" value={draft.start} onChange={(d) => set({ start: d })} timeZone={tz} minDate={minDate} />
+          {when('When')}
           <PhotoPicker paths={draft.photos} onChange={(p) => set({ photos: p })} />
         </>
       )}
@@ -635,7 +746,7 @@ export function LogSheet({
       {/* ------------------------------------------------------------ NOTE */}
       {type === 'note' && (
         <>
-          <WhenPicker label="Day" value={draft.start} onChange={(d) => set({ start: d })} timeZone={tz} minDate={minDate} />
+          {when('When')}
           <TextArea label="What happened today" value={draft.notes} onChange={(v) => set({ notes: v })} rows={6} placeholder="A little story for the Baby Diary" />
           <PhotoPicker paths={draft.photos} onChange={(p) => set({ photos: p })} />
         </>
@@ -659,8 +770,6 @@ function SolidsFields({
   setFoodInput,
   events,
   childId,
-  tz,
-  minDate,
   set,
 }: {
   draft: Draft
@@ -669,8 +778,6 @@ function SolidsFields({
   setFoodInput: (v: string) => void
   events: LeelaEvent[]
   childId: string | null
-  tz: string
-  minDate: string | null
   set: (p: Partial<Draft>) => void
 }) {
   const tried = useMemo(() => {
@@ -691,7 +798,6 @@ function SolidsFields({
   const allergens = foods.filter((f) => f.allergen).map((f) => f.name)
   return (
     <>
-      <WhenPicker label="When" value={draft.start} onChange={(d) => set({ start: d })} timeZone={tz} minDate={minDate} />
       <Field label="Foods" hint={foods.some((f) => f.first) ? 'New foods are marked as a first try.' : undefined}>
         <div className="mb-2 flex flex-wrap gap-2">
           {foods.map((f) => (
@@ -787,19 +893,15 @@ function SolidsFields({
 function MedicineFields({
   draft,
   setData,
-  set,
   events,
   childId,
   tz,
-  minDate,
 }: {
   draft: Draft
   setData: (p: EventData) => void
-  set: (p: Partial<Draft>) => void
   events: LeelaEvent[]
   childId: string | null
   tz: string
-  minDate: string | null
 }) {
   const recent = useMemo(() => {
     const seen = new Map<string, LeelaEvent>()
@@ -812,7 +914,6 @@ function MedicineFields({
   const lastSame = recent.find((r) => r.data.name?.toLowerCase() === draft.data.name?.toLowerCase())
   return (
     <>
-      <WhenPicker label="Given" value={draft.start} onChange={(d) => set({ start: d })} timeZone={tz} minDate={minDate} />
       {recent.length > 0 && (
         <div className="no-scrollbar -mx-5 mb-3 flex gap-2 overflow-x-auto px-5">
           {recent.map((r) => (

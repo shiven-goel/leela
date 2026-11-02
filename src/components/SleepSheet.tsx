@@ -1,4 +1,3 @@
-import clsx from 'clsx'
 import { MoonStars, PencilSimple, Plus, SunHorizon, Trash } from '@phosphor-icons/react'
 import { useEffect, useState } from 'react'
 import { useNow } from '../hooks/useNow'
@@ -9,10 +8,11 @@ import { fmtRange, spanText } from '../lib/sweetspotText'
 import { clockText, fmtTime } from '../lib/time'
 import type { Child, LeelaEvent } from '../lib/types'
 import { Sheet } from './Sheet'
+import { type When, whenAt, whenIsNow, whenText } from '../lib/timerange'
+import { QuickTime } from './TimeField'
 import { Button } from './ui'
 
 const MIN = 60_000
-const OFFSETS = [0, 5, 10, 15, 30]
 
 /**
  * What tapping Sleep opens. Nothing is saved until Start sleep (or End sleep) is pressed,
@@ -40,32 +40,36 @@ export function SleepSheet({
   const userId = useLeela((s) => s.userId)
   useLeela((s) => s.profiles)
   const tz = family?.timezone ?? 'UTC'
-  const [ago, setAgo] = useState(0)
+  const [when, setWhen] = useState<When>({ min: 0 })
   const [busy, setBusy] = useState(false)
 
   useEffect(() => {
     if (open) {
-      setAgo(0)
+      setWhen({ min: 0 })
       setBusy(false)
     }
   }, [open, running?.id])
 
   const name = child.name
-  const at = now - ago * MIN
-  // The earliest a sleep can have started: not before the last one ended.
-  const floor = running ? Date.parse(running.started_at) + MIN : spot.awakeSince ?? 0
+  const isNow = whenIsNow(when)
+  const at = whenAt(when, now)
+  // A sleep can't end before it started, or start before the last one ended.
+  const started = running ? Date.parse(running.started_at) : 0
+  const floor = running ? started + MIN : (spot.awakeSince ?? 0)
+  const tooEarly = !isNow && at < floor
+  const atText = whenText(at, tz, now)
 
   const start = async () => {
-    if (busy) return
+    if (busy || tooEarly) return
     setBusy(true)
-    await startTimer('sleep', child.id, { startedAt: ago ? new Date(at).toISOString() : undefined })
+    await startTimer('sleep', child.id, { startedAt: isNow ? undefined : new Date(at).toISOString() })
     useLeela.getState().toast({ text: `Sleep timer started for ${name}.` })
     onClose()
   }
   const end = async () => {
-    if (!running || busy) return
+    if (!running || busy || tooEarly) return
     setBusy(true)
-    await stopTimer(running.id, new Date(Math.max(at, floor)).toISOString())
+    await stopTimer(running.id, new Date(isNow ? Date.now() : at).toISOString())
     onClose()
   }
   const remove = async () => {
@@ -93,7 +97,6 @@ export function SleepSheet({
     return null
   })()
 
-  const started = running ? Date.parse(running.started_at) : 0
   const by = running ? (running.created_by === userId ? 'you' : displayName(running.created_by)) : ''
 
   return (
@@ -114,35 +117,20 @@ export function SleepSheet({
         </p>
       )}
 
-      <p className="mb-2 text-[15px] font-semibold text-ink-2">{running ? 'Woke up' : 'Fell asleep'}</p>
-      <div className="no-scrollbar -mx-5 mb-5 flex gap-2 overflow-x-auto px-5 pb-1" role="radiogroup" aria-label={running ? 'When they woke up' : 'When they fell asleep'}>
-        {OFFSETS.map((m) => {
-          const t = now - m * MIN
-          const disabled = m > 0 && t < floor
-          return (
-            <button
-              key={m}
-              type="button"
-              role="radio"
-              aria-checked={ago === m}
-              disabled={disabled}
-              onClick={() => setAgo(m)}
-              className={clsx(
-                'min-h-11 shrink-0 rounded-full px-4 text-[15px] font-medium disabled:opacity-40',
-                ago === m ? 'bg-[var(--sleep)] text-white' : 'bg-card-2 ring-1 ring-line',
-              )}
-            >
-              {m === 0 ? 'Just now' : `${m} min ago`}
-            </button>
-          )
-        })}
-      </div>
+      <QuickTime label={running ? 'Woke up' : 'Fell asleep'} value={when} onChange={setWhen} tz={tz} now={now} floor={floor} tone="sleep" />
+      {tooEarly && (
+        <p role="alert" className="-mt-2 mb-4 text-[15px] font-semibold text-[var(--health)]">
+          {running
+            ? `That’s before ${name} fell asleep (${fmtTime(started, tz)}).`
+            : `That’s before ${name} last woke up (${fmtTime(floor, tz)}).`}
+        </p>
+      )}
 
       {running ? (
         <>
-          <Button tone="sleep" className="h-16 w-full text-[19px]" onClick={() => void end()} disabled={busy}>
+          <Button tone="sleep" className="h-16 w-full text-[19px]" onClick={() => void end()} disabled={busy || tooEarly}>
             <SunHorizon size={24} weight="fill" aria-hidden="true" />
-            {ago ? `End sleep at ${fmtTime(Math.max(at, floor), tz)}` : 'End sleep'}
+            {isNow ? 'End sleep' : `End sleep at ${atText}`}
           </Button>
           <div className="mt-3 grid grid-cols-2 gap-2">
             <Button variant="secondary" size="md" onClick={() => onEdit(running)}>
@@ -155,9 +143,9 @@ export function SleepSheet({
         </>
       ) : (
         <>
-          <Button tone="sleep" className="h-16 w-full text-[19px]" onClick={() => void start()} disabled={busy}>
+          <Button tone="sleep" className="h-16 w-full text-[19px]" onClick={() => void start()} disabled={busy || tooEarly}>
             <MoonStars size={24} weight="fill" aria-hidden="true" />
-            {ago ? `Start sleep from ${fmtTime(at, tz)}` : 'Start sleep'}
+            {isNow ? 'Start sleep' : `Start sleep from ${atText}`}
           </Button>
           <p className="mt-2 text-center text-[13px] text-ink-3">Starts a timer that everyone in the family sees.</p>
           <div className="my-5 flex items-center gap-3 text-[13px] text-ink-3" aria-hidden="true">

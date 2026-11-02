@@ -321,6 +321,7 @@ export type Database = {
       create_family: { Args: { p_display_name: string; p_family_name: string; p_timezone?: string }; Returns: Json }
       join_family: { Args: { p_code: string; p_confirm?: boolean; p_display_name?: string }; Returns: Json }
       leave_family: { Args: { p_confirm?: string | null }; Returns: Json }
+      nursing_align_start: { Args: { p_event_id: string }; Returns: undefined }
       nursing_set: { Args: { p_at: string; p_event_id: string; p_segment_id?: string; p_side: string | null }; Returns: undefined }
       remove_member: { Args: { p_user_id: string }; Returns: Json }
       reset_family_code: { Args: never; Returns: Json }

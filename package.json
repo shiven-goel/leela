@@ -9,7 +9,7 @@
     "lint": "oxlint",
     "preview": "vite preview",
     "build:edge": "esbuild src/lib/sweetspot.ts --bundle --format=esm --platform=browser --target=es2022 --legal-comments=none --minify --banner:js='// Generated from src/lib/sweetspot.ts by npm run build:edge. Do not edit.' --outfile=supabase/functions/sweetspot-push/sweetspot.js",
-    "test": "tsx tests/sweetspot.test.ts && tsx tests/duplicates.test.ts && tsx tests/webpush.test.ts && tsx tests/charts.test.ts"
+    "test": "tsx tests/sweetspot.test.ts && tsx tests/duplicates.test.ts && tsx tests/webpush.test.ts && tsx tests/charts.test.ts && tsx tests/timerange.test.ts"
   },
   "dependencies": {
     "@date-fns/tz": "^1.5.0",

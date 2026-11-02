@@ -213,6 +213,32 @@ async function historyDay(p, daysAgo) {
   else await p.page.getByLabel('Pick a day').fill(dayIso(daysAgo), { force: true })
   await p.page.waitForTimeout(500)
 }
+/** A moment some minutes before `base`, as the date and clock time a parent would pick (family's zone). */
+function ago(mins, base = Date.now()) {
+  const t = new Date(base - mins * 60_000)
+  return { date: t.toLocaleDateString('en-CA', { timeZone: TZ }), time: t.toLocaleTimeString('en-GB', { timeZone: TZ, hour: '2-digit', minute: '2-digit', hour12: false }) }
+}
+/** Picks a date and a time on one of Leela's clock controls ("Started", "Woke up"...). */
+async function pickAt(d, label, mins, base = Date.now()) {
+  const at = ago(mins, base)
+  await d.getByLabel(`${label} date`).fill(at.date)
+  await d.getByLabel(`${label} time`).fill(at.time)
+  return at
+}
+const isoOf = (at) => `${at.date}T${at.time}:00+05:30`
+const clockOf = (iso) => new Date(iso).toLocaleTimeString('en-GB', { timeZone: TZ, hour: '2-digit', minute: '2-digit', hour12: false })
+const dateOf = (iso) => new Date(iso).toLocaleDateString('en-CA', { timeZone: TZ })
+/** Opens History on the day something started (just before midnight is yesterday). */
+async function historyOf(p, iso) {
+  const back = [0, 1, 2, 3].find((i) => dayIso(i) === dateOf(iso))
+  assert(back !== undefined, `no History day for ${iso}`)
+  await historyDay(p, back)
+}
+/** The newest entry of a kind, as the server has it. */
+async function newestEvent(client, familyId, type, test = () => true) {
+  const { data } = await client.from('events').select('*').eq('family_id', familyId).eq('type', type).is('deleted_at', null).order('created_at', { ascending: false }).limit(5)
+  return (data ?? []).find(test) ?? null
+}
 async function waitFor(fn, timeout = 15_000, every = 400) {
   const end = Date.now() + timeout
   let last
@@ -388,6 +414,35 @@ async function full() {
     { needs: ['A5'] },
   )
   await check(
+    'T1',
+    'A sleep that began 70 minutes ago and ended 50 minutes ago is saved at exactly those times, both picked on the clock',
+    async () => {
+      const t0 = Date.now()
+      const from = ago(70, t0)
+      const to = ago(50, t0)
+      await tile(mom, 'Sleep')
+      let sheet = mom.page.getByRole('dialog', { name: 'Sleep' })
+      await sheet.getByLabel('Fell asleep time').fill(from.time)
+      await sheet.getByRole('button', { name: /^Start sleep from/ }).click()
+      await dad.page.getByRole('region', { name: /^Asleep/ }).waitFor({ timeout: 12_000 })
+      await tile(mom, 'Wake up')
+      sheet = mom.page.getByRole('dialog', { name: 'Sleep' })
+      await sheet.getByLabel('Woke up time').fill(ago(80, t0).time)
+      await sheet.getByText(/That’s before Asha fell asleep/).waitFor()
+      assert(await sheet.getByRole('button', { name: /^End sleep/ }).isDisabled(), 'waking up before falling asleep was allowed')
+      await sheet.getByLabel('Woke up time').fill(to.time)
+      await sheet.getByRole('button', { name: /^End sleep at/ }).click()
+      await dad.page.getByRole('region', { name: /^Asleep/ }).waitFor({ state: 'detached', timeout: 12_000 })
+      const e = await waitFor(() => newestEvent(momApi, familyId, 'sleep', (x) => x.ended_at && !x.timer_state))
+      assert(clockOf(e.started_at) === from.time && clockOf(e.ended_at) === to.time, `saved ${clockOf(e.started_at)}–${clockOf(e.ended_at)}, picked ${from.time}–${to.time}`)
+      await historyOf(dad, e.started_at)
+      await seen(dad, /(Nap|Night sleep)\s*20m/)
+      await tab(dad, 'Today')
+      return `${from.time}–${to.time}`
+    },
+    { needs: ['A5'] },
+  )
+  await check(
     'L26',
     'Tapping Sleep by mistake starts nothing: the timer needs its own Start button',
     async () => {
@@ -483,6 +538,35 @@ async function full() {
     { needs: ['A5'] },
   )
   await check(
+    'T2',
+    'A breastfeed timer started 20 minutes ago, stopped from Edit details at 10 minutes ago: side time after that doesn’t count',
+    async () => {
+      const t0 = Date.now()
+      const from = ago(20, t0)
+      await tile(mom, 'Feed')
+      let d = dialog(mom)
+      await d.getByRole('tab', { name: 'Breast' }).click()
+      await d.getByRole('button', { name: 'Started earlier? Pick the time' }).click()
+      await d.getByLabel('Started time').fill(from.time)
+      await d.getByRole('button', { name: /^Start left/ }).filter({ hasText: 'from' }).click()
+      await dad.page.getByRole('region', { name: /^Breastfeeding/ }).waitFor({ timeout: 12_000 })
+      await mom.page.getByRole('button', { name: /^right/i }).click()
+      await dad.page.getByRole('button', { name: /^right/i, pressed: true }).waitFor({ timeout: 12_000 })
+      await mom.page.getByRole('button', { name: 'Edit breastfeeding' }).click()
+      d = dialog(mom)
+      await d.getByRole('switch', { name: 'Still feeding' }).click()
+      const to = await pickAt(d, 'Ended', 10, t0)
+      await d.getByText('Fed for 10m').waitFor()
+      await d.getByRole('button', { name: 'Stop and save' }).click()
+      await dad.page.getByRole('region', { name: /^Breastfeeding/ }).waitFor({ state: 'detached', timeout: 12_000 })
+      const e = await waitFor(() => newestEvent(momApi, familyId, 'nursing', (x) => x.ended_at && !x.timer_state && x.data.right_s !== undefined && Date.parse(x.ended_at) === Date.parse(isoOf(to))))
+      assert(clockOf(e.started_at) === from.time, `started ${clockOf(e.started_at)}, picked ${from.time}`)
+      assert(Math.abs(e.data.left_s - 600) <= 60 && e.data.right_s === 0, `sides left ${e.data.left_s}s, right ${e.data.right_s}s for a 10-minute feed`)
+      return `${from.time}–${to.time}, left ${e.data.left_s}s, right ${e.data.right_s}s`
+    },
+    { needs: ['L5'] },
+  )
+  await check(
     'L6',
     'A bottle with its amount and formula shows on the other phone',
     async () => {
@@ -537,6 +621,57 @@ async function full() {
     { needs: ['L7'], shot: true },
   )
 
+  await check(
+    'T3',
+    'A past breastfeed with its start, end and sides; sides adding up to more than the feed are refused',
+    async () => {
+      await tile(mom, 'Feed')
+      const d = dialog(mom)
+      await d.getByRole('tab', { name: 'Breast' }).click()
+      await d.getByRole('button', { name: 'Log a past feed instead' }).click()
+      const t0 = Date.now()
+      const from = await pickAt(d, 'Started', 45, t0)
+      const to = await pickAt(d, 'Ended', 25, t0)
+      await d.getByText('Fed for 20m').waitFor()
+      await d.getByLabel('left side minutes', { exact: true }).fill('15')
+      await d.getByLabel('right side minutes', { exact: true }).fill('8')
+      await d.getByText('Left and right add up to 23m, but the feed lasted 20m.').waitFor()
+      assert(await d.getByRole('button', { name: 'Log breastfeed' }).isDisabled(), 'saving was allowed')
+      await d.getByLabel('left side minutes', { exact: true }).fill('12')
+      await d.getByRole('button', { name: 'Log breastfeed' }).click()
+      const e = await waitFor(() => newestEvent(momApi, familyId, 'nursing', (x) => x.data.left_s === 720))
+      assert(clockOf(e.started_at) === from.time && clockOf(e.ended_at) === to.time && e.data.right_s === 480, `saved ${clockOf(e.started_at)}–${clockOf(e.ended_at)} ${JSON.stringify(e.data)}`)
+      await historyOf(dad, e.started_at)
+      await seen(dad, 'left 12m, right 8m')
+      await tab(dad, 'Today')
+      return `${from.time}–${to.time}`
+    },
+    { needs: ['A5'] },
+  )
+  await check(
+    'T4',
+    'A bottle with an end time picked on the clock: its length shows on the other phone',
+    async () => {
+      await tile(mom, 'Feed')
+      const d = dialog(mom)
+      await d.getByRole('tab', { name: 'Bottle' }).click()
+      await d.getByLabel('amount', { exact: true }).fill('90')
+      await d.getByRole('radio', { name: 'Formula' }).click()
+      await d.getByRole('button', { name: 'Add end time' }).click()
+      const t0 = Date.now()
+      const from = await pickAt(d, 'Started', 30, t0)
+      const to = await pickAt(d, 'Ended', 15, t0)
+      await d.getByText('Lasted 15m').waitFor()
+      await d.getByRole('button', { name: 'Log bottle' }).click()
+      const e = await waitFor(() => newestEvent(momApi, familyId, 'bottle', (x) => x.data.amount_ml === 90))
+      assert(clockOf(e.started_at) === from.time && e.ended_at && clockOf(e.ended_at) === to.time, `saved ${clockOf(e.started_at)}–${e.ended_at && clockOf(e.ended_at)}`)
+      await historyOf(dad, e.started_at)
+      await seen(dad, '90 ml, formula, 15m')
+      await tab(dad, 'Today')
+    },
+    { needs: ['A5'] },
+  )
+
   const kinds = [
     ['L10', 'Solids with a food', 'Solids', async (d) => {
       await d.getByLabel('Food name').fill('Banana')
@@ -572,11 +707,6 @@ async function full() {
       await d.getByLabel('Vaccine name').fill('MMR')
       await d.getByRole('button', { name: 'Log symptoms' }).click()
     }, 'MMR'],
-    ['L17', 'An activity with how long it lasted', 'Activity', async (d) => {
-      await d.getByRole('radio', { name: 'Bath' }).click()
-      await d.getByLabel('duration', { exact: true }).fill('10')
-      await d.getByRole('button', { name: 'Log activity' }).click()
-    }, 'Bath'],
     ['L18', 'Potty, for toddlers', 'Potty', async (d) => {
       await d.getByRole('radio', { name: 'Pee' }).click()
       await d.getByRole('button', { name: 'Log potty' }).click()
@@ -601,12 +731,61 @@ async function full() {
     async () => {
       await more(mom, 'Pumping')
       const d = dialog(mom)
+      const t0 = Date.now()
+      const from = await pickAt(d, 'Started', 40, t0)
+      await pickAt(d, 'Ended', 20, t0)
       await d.getByLabel('left amount', { exact: true }).fill('60')
       await d.getByLabel('right amount', { exact: true }).fill('50')
       await d.getByRole('button', { name: 'Log pumping' }).click()
-      await seen(mom, 'left 60 ml, right 50 ml')
+      await historyOf(mom, isoOf(from))
+      await seen(mom, 'left 60 ml, right 50 ml, 20m')
+      await tab(mom, 'Today')
     },
     { needs: ['A5'] },
+  )
+  await check(
+    'L17',
+    'A bath with its start and end picked on the clock; an end before the start is refused',
+    async () => {
+      await more(mom, 'Activity')
+      const d = dialog(mom)
+      await d.getByRole('radio', { name: 'Bath' }).click()
+      await d.getByLabel('Ended date').fill(dayIso(1))
+      await d.getByText('The end has to be after the start.').waitFor()
+      assert(await d.getByRole('button', { name: 'Log activity' }).isDisabled(), 'an end before the start was allowed')
+      const t0 = Date.now()
+      const from = await pickAt(d, 'Started', 25, t0)
+      const to = await pickAt(d, 'Ended', 15, t0)
+      await d.getByText('Lasted 10m').waitFor()
+      await d.getByRole('button', { name: 'Log activity' }).click()
+      const e = await waitFor(() => newestEvent(momApi, familyId, 'activity', (x) => x.data.kind === 'bath'))
+      assert(clockOf(e.started_at) === from.time && clockOf(e.ended_at) === to.time, `saved ${clockOf(e.started_at)}–${clockOf(e.ended_at)}`)
+      await historyOf(dad, e.started_at)
+      await seen(dad, /Bath\s*10m/)
+      await tab(dad, 'Today')
+    },
+    { needs: ['A5'] },
+  )
+  await check(
+    'T5',
+    'Changing an entry’s end time from History updates the other phone',
+    async () => {
+      const bath = await newestEvent(momApi, familyId, 'activity', (x) => x.data.kind === 'bath')
+      await historyOf(mom, bath.started_at)
+      await rows(mom, /Bath\s*10m/).first().click()
+      const d = dialog(mom)
+      const to = await pickAt(d, 'Ended', 5)
+      const len = Math.round((Date.parse(isoOf(to)) - Date.parse(bath.started_at)) / 60_000)
+      await d.getByText(`Lasted ${len}m`).waitFor()
+      await d.getByRole('button', { name: 'Save changes' }).click()
+      await waitFor(async () => (await newestEvent(momApi, familyId, 'activity', (x) => x.id === bath.id && clockOf(x.ended_at) === to.time)) !== null)
+      await historyOf(dad, bath.started_at)
+      await seen(dad, new RegExp(`Bath\\s*${len}m`))
+      await tab(mom, 'Today')
+      await tab(dad, 'Today')
+      return `now ${len}m`
+    },
+    { needs: ['L17'] },
   )
   await check(
     'L20',
@@ -671,18 +850,36 @@ async function full() {
   )
   await check(
     'L25',
-    'A past nap with the times typed in lands on yesterday',
+    'A past nap with the times picked on the clock lands on yesterday',
     async () => {
       await more(mom, 'Sleep')
       const d = dialog(mom)
-      await d.getByRole('button', { name: 'Earlier day' }).nth(0).click()
-      await d.getByLabel('Fell asleep date and time').fill(`${dayIso(1)}T13:00`)
-      await d.getByRole('button', { name: 'Earlier day' }).nth(1).click()
-      await d.getByLabel('Woke up date and time').fill(`${dayIso(1)}T14:30`)
+      await d.getByLabel('Fell asleep date').fill(dayIso(1))
+      await d.getByLabel('Fell asleep time').fill('13:00')
+      await d.getByLabel('Woke up time').fill('14:30')
       await d.getByText('Slept 1h 30m').waitFor()
       await d.getByRole('button', { name: 'Log sleep' }).click()
       await historyDay(dad, 1)
       await seen(dad, '1h 30m')
+      await tab(dad, 'Today')
+    },
+    { needs: ['A5'] },
+  )
+  await check(
+    'T6',
+    'A night sleep from 11:40 PM to 2:15 AM is 2h 35m, and shows on the morning it ended',
+    async () => {
+      await more(mom, 'Sleep')
+      const d = dialog(mom)
+      await d.getByLabel('Fell asleep date').fill(dayIso(2))
+      await d.getByLabel('Fell asleep time').fill('23:40')
+      await d.getByLabel('Woke up time').fill('02:15')
+      await d.getByText('Slept 2h 35m').waitFor()
+      await d.getByRole('button', { name: 'Log sleep' }).click()
+      const e = await waitFor(() => newestEvent(momApi, familyId, 'sleep', (x) => x.ended_at && clockOf(x.ended_at) === '02:15'))
+      assert(dateOf(e.started_at) === dayIso(2) && clockOf(e.started_at) === '23:40' && dateOf(e.ended_at) === dayIso(1), `saved ${e.started_at} to ${e.ended_at}`)
+      await historyDay(dad, 1)
+      await seen(dad, /Night sleep\s*2h 35m/)
       await tab(dad, 'Today')
     },
     { needs: ['A5'] },

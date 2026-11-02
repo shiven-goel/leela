@@ -16,7 +16,7 @@ import { Overlay } from './Overlay'
 import { PhotoPicker } from './PhotoPicker'
 import { Sheet } from './Sheet'
 import { Button } from './ui'
-import { WhenPicker } from './WhenPicker'
+import { TimeField } from './TimeField'
 
 const MAX_CHARS = 500_000
 
@@ -155,7 +155,7 @@ export function NoteEditor({ open, noteId, onClose }: { open: boolean; noteId?: 
         aria-label="Title"
         className="mb-3 w-full bg-transparent font-display text-[26px] font-bold leading-tight outline-none placeholder:text-ink-3"
       />
-      <WhenPicker label="When it happened" value={at} onChange={setAt} timeZone={family.timezone} />
+      <TimeField label="When it happened" value={at.getTime()} onChange={(ms) => setAt(new Date(ms))} tz={family.timezone} />
       <textarea
         ref={area}
         value={body}

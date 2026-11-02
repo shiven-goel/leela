@@ -21,6 +21,11 @@ export function eventTitle(e: LeelaEvent, family: Family | null): string {
   }
 }
 
+/** A finished entry with an end of its own, a minute or longer (a timed bottle, say). */
+function timedLength(e: LeelaEvent): boolean {
+  return !e.timer_state && Boolean(e.ended_at) && Date.parse(e.ended_at!) - Date.parse(e.started_at) >= 60_000
+}
+
 export function eventDetail(
   e: LeelaEvent,
   segments: TimerSegment[],
@@ -57,18 +62,21 @@ export function eventDetail(
     case 'bottle':
       if (d.amount_ml !== undefined) parts.push(`${Math.round(d.amount_ml)} ml`)
       if (d.contents) parts.push(d.contents === 'breast' ? 'breast milk' : d.contents === 'mixed' ? 'mixed' : 'formula')
+      if (timedLength(e)) parts.push(dur())
       break
     case 'pump': {
       if (e.timer_state) parts.push(`Pumping for ${dur()}`)
       const total = d.total_ml ?? ((d.left_ml ?? 0) + (d.right_ml ?? 0) || undefined)
       if (d.left_ml || d.right_ml) parts.push(`left ${d.left_ml ?? 0} ml, right ${d.right_ml ?? 0} ml`)
       else if (total) parts.push(`${total} ml`)
+      if (timedLength(e)) parts.push(dur())
       break
     }
     case 'solids': {
       const foods = (d.foods ?? []).map((f) => f.name).filter(Boolean)
       if (foods.length) parts.push(foods.join(', '))
       if (d.reaction) parts.push(d.reaction === 'liked' ? 'loved it' : d.reaction === 'disliked' ? 'not a fan' : 'okay')
+      if (timedLength(e)) parts.push(dur())
       break
     }
     case 'diaper':

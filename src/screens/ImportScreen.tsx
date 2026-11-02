@@ -4,6 +4,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { TypeIcon } from '../components/Icon'
 import { Overlay } from '../components/Overlay'
 import { Sheet } from '../components/Sheet'
+import { TimeField, TimeRange } from '../components/TimeField'
 import { Button, Choices, Toggle } from '../components/ui'
 import { savePrefs } from '../lib/actions'
 import { TYPES, toneSoft, toneVar } from '../lib/config'
@@ -15,7 +16,8 @@ import { commitImport, listImports, markDuplicates, undoImport, type ImportRecor
 import { MEANINGS, rankMeanings, type Vocab } from '../lib/import/vocab'
 import { activeChild, myPrefs, useLeela } from '../lib/store'
 import { loadAllHistory } from '../lib/sync'
-import { dayKey, dayLabel, fmtLongDate, fmtShortDate, fmtTime, fromLocalInput, toLocalInput } from '../lib/time'
+import { dayKey, dayLabel, fmtLongDate, fmtShortDate, fmtTime } from '../lib/time'
+import { checkRange, issueText, MIN } from '../lib/timerange'
 import type { EventType, LeelaEvent } from '../lib/types'
 
 type Step = 'choose' | 'reading' | 'ask' | 'review' | 'saving' | 'done'
@@ -792,6 +794,7 @@ function DraftSheet({ draft, unknown, onClose, onChange }: { draft: Draft; unkno
   const words = unknown.filter((t) => new RegExp(`(?<![\\p{L}\\d])${t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?![\\p{L}\\d])`, 'iu').test(d.source))
   const meaning = meaningForDraft(d)
   const types = Object.values(TYPES).filter((t) => t.type !== 'contraction')
+  const timeIssue = d.end !== null ? checkRange({ start: d.start, end: d.end }, Date.now()) : null
   return (
     <Sheet
       open
@@ -800,6 +803,7 @@ function DraftSheet({ draft, unknown, onClose, onChange }: { draft: Draft; unkno
       footer={
         <Button
           className="w-full"
+          disabled={timeIssue === 'end-before-start'}
           onClick={() => {
             onChange({ ...d, flags: d.flags.filter((f) => f !== 'no_time' || d.start !== draft.start) })
             onClose()
@@ -828,21 +832,20 @@ function DraftSheet({ draft, unknown, onClose, onChange }: { draft: Draft; unkno
           </option>
         ))}
       </select>
-      <label className="mb-2 block text-[15px] font-semibold text-ink-2" htmlFor="draft-when">
-        When
-      </label>
-      <input
-        id="draft-when"
-        type="datetime-local"
-        value={toLocalInput(d.start, tz)}
-        onChange={(e) => {
-          const at = fromLocalInput(e.target.value, tz)
-          if (!at) return
-          const shift = at.getTime() - d.start
-          setD({ ...d, start: at.getTime(), end: d.end ? d.end + shift : null })
-        }}
-        className="mb-5 h-13 w-full rounded-2xl border border-line bg-card-2 px-3 text-[17px]"
-      />
+      {d.end !== null ? (
+        <TimeRange
+          startLabel="Started"
+          endLabel="Ended"
+          range={{ start: d.start, end: d.end }}
+          onChange={(r) => setD({ ...d, start: r.start, end: r.end })}
+          tz={tz}
+          defaultLen={15 * MIN}
+          keepLength
+          issue={timeIssue ? issueText(timeIssue) : null}
+        />
+      ) : (
+        <TimeField label="When" value={d.start} onChange={(start) => setD({ ...d, start })} tz={tz} chips={false} />
+      )}
       <div className="mb-5">
         <Toggle label="Save this entry" checked={d.include} onChange={(v) => setD({ ...d, include: v })} />
       </div>

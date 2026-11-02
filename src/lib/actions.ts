@@ -92,6 +92,29 @@ export async function editEvent(
   const loaded = opts?.base ?? cur.updated_at
   putLocal({ ...cur, ...patch, updated_by: s.userId })
   await enqueue({ kind: 'update', table: 'events', rowId: id, patch, ifUpdatedAt: opts?.force || cur._local ? undefined : loaded })
+  // A running breastfeed that really started earlier (or later): its sides start with it.
+  if (cur.type === 'nursing' && cur.timer_state && patch.started_at && patch.started_at !== cur.started_at) {
+    alignSegments(id, patch.started_at)
+    await enqueue({ kind: 'rpc', fn: 'nursing_align_start', rowId: id, args: { p_event_id: id } })
+  }
+}
+
+/** Sides of a running feed follow its start: the first side began then, and nothing counts before it. */
+function alignSegments(eventId: string, startIso: string) {
+  const s = getState()
+  const segs = Object.values(s.segments)
+    .filter((x) => x.event_id === eventId)
+    .sort((a, b) => a.started_at.localeCompare(b.started_at))
+  if (!segs.length) return
+  const next = { ...s.segments }
+  for (const seg of segs) {
+    if (seg.started_at < startIso) {
+      next[seg.id] = { ...seg, started_at: startIso, ended_at: seg.ended_at && seg.ended_at < startIso ? startIso : seg.ended_at }
+    }
+  }
+  const first = next[segs[0].id]
+  if (first.started_at > startIso) next[first.id] = { ...first, started_at: startIso }
+  s.set({ segments: next })
 }
 
 export async function deleteEvent(id: string, opts?: { quiet?: boolean }) {
@@ -166,6 +189,19 @@ export async function startTimer(
   return e
 }
 
+/**
+ * Ends a feed's sides at `at`. Stopped at an earlier time ("she finished 10 minutes ago"), any side
+ * time after that no longer counts, so left and right never add up to more than the feed.
+ */
+function clipSegments(eventId: string, at: string) {
+  const s = getState()
+  const segs = Object.values(s.segments).filter((x) => x.event_id === eventId && (!x.ended_at || x.ended_at > at))
+  if (!segs.length) return
+  const next = { ...s.segments }
+  for (const seg of segs) next[seg.id] = { ...seg, ended_at: at < seg.started_at ? seg.started_at : at }
+  s.set({ segments: next })
+}
+
 function closeOpenSegment(eventId: string, at: string) {
   const s = getState()
   const segs = Object.values(s.segments).filter((x) => x.event_id === eventId && !x.ended_at)
@@ -180,7 +216,7 @@ export async function stopTimer(id: string, at: string = nowIso(), extra?: { dat
   const cur = s.events[id]
   if (!cur || !cur.timer_state) return
   const end = at < cur.started_at ? cur.started_at : at
-  closeOpenSegment(id, end)
+  clipSegments(id, end)
   let data = { ...cur.data, ...(extra?.data ?? {}) }
   if (cur.type === 'nursing') {
     const secs = nursingSeconds({ ...cur, timer_state: null, data: {} }, Object.values(getState().segments), Date.parse(end))
