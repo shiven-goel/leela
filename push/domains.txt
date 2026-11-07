@@ -1,0 +1,14 @@
+Checked 2026-11-01 with each registry's RDAP service. "Looks free" means no registration was found; confirm at a registrar.
+
+leela.baby           looks free
+leela.family         looks free
+leela.care           taken
+leelababy.com        looks free
+leelababy.in         looks free
+leelaapp.in          looks free
+getleela.app         looks free
+myleela.app          taken
+leelalog.com         taken
+leela.day            taken
+heyleela.com         taken
+leelatracker.com     looks free

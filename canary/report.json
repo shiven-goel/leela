@@ -1,0 +1,22 @@
+{
+ "summary": {
+  "run": "20261107-q9uq",
+  "mode": "canary",
+  "at": "2026-11-07T05:19:29.839Z",
+  "minutes": 0,
+  "pass": 1,
+  "fail": 0,
+  "skip": 0,
+  "live_sync_ms": null
+ },
+ "results": [
+  {
+   "id": "C1",
+   "name": "Long-running family: every entry from earlier runs is still there, unchanged",
+   "status": "pass",
+   "ms": 1985,
+   "note": "12 entries from 12 earlier runs over 6 days, all intact; 15 activity records"
+  }
+ ],
+ "errors": []
+}
