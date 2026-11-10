@@ -116,9 +116,17 @@ async function remind(admin: Db, vapid: Vapid) {
     for (const sub of (subs as Sub[]).filter((s) => s.family_id === kid.family_id && member.has(`${s.family_id}/${s.user_id}`))) {
       if (now < w.start - sub.lead_min * 60_000 || now > w.end) continue
       due++
-      // One reminder per phone per sleep, even if the prediction moves a little afterwards.
-      const { error } = await admin.from('push_sent').insert({ subscription_id: sub.id, child_id: kid.id, slot })
-      if (error) continue // already sent
+      // One reminder per phone per sleep, even if the prediction moves a little afterwards. Marking
+      // it sent only adds a row that isn't there yet, so the minutes after skip it without an error.
+      const { data: marked, error } = await admin
+        .from('push_sent')
+        .upsert({ subscription_id: sub.id, child_id: kid.id, slot }, { onConflict: 'subscription_id,child_id,slot', ignoreDuplicates: true })
+        .select('slot')
+      if (error) {
+        console.error('push_sent', error.message)
+        continue // tried again next minute
+      }
+      if (!marked?.length) continue // already sent
       if (endpoints.has(sub.endpoint)) continue // two people signed in on one phone: one notification
       endpoints.add(sub.endpoint)
       const mins = Math.round((w.start - now) / 60_000)

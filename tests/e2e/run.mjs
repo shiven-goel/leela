@@ -1751,6 +1751,13 @@ async function pushInbox() {
         await new Promise((r) => setTimeout(r, 500))
       }
     },
+    /** How many of the messages that arrived on a channel pass a test. */
+    count(ch, test) {
+      return messages.filter((x) => x.channelID === ch.channelID).filter((m) => {
+        const plain = ece.decrypt(Buffer.from(m.data, 'base64url'), { version: 'aes128gcm', privateKey: ch.ecdh, authSecret: ch.auth })
+        return test(JSON.parse(plain.toString('utf8')))
+      }).length
+    },
     close: () => {
       finished = true
       ws?.close()
@@ -1831,6 +1838,14 @@ async function push() {
     assert(msg.url && msg.url.startsWith('http'), `url: ${msg.url}`)
     return `“${msg.title}. ${msg.body}”`
   }, { needs: ['R1'] })
+  await check('R4', 'Only one reminder per sleep: the next runs of the schedule send nothing more', async () => {
+    const reminder = (m) => /sweet spot/.test(m.title ?? '') && m.tag !== 'leela-test'
+    // Two more runs of the every-minute schedule.
+    await new Promise((r) => setTimeout(r, 125_000))
+    const n = inbox.count(ch, reminder)
+    assert(n === 1, `${n} reminders arrived for one sleep`)
+    return 'one reminder'
+  }, { needs: ['R2'] })
   await check('R3', 'Turning reminders off on the phone stops them', async () => {
     const sheet = p.page.getByRole('dialog', { name: 'Sweet spot' })
     if (!(await sheet.count())) await p.page.getByRole('button', { name: /Open Sweet spot$/ }).click()
