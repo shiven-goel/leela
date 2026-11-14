@@ -1,0 +1,43 @@
+{
+ "summary": {
+  "run": "20261110-roj0",
+  "mode": "push",
+  "at": "2026-11-10T08:50:08.020Z",
+  "minutes": 2.3,
+  "pass": 4,
+  "fail": 0,
+  "skip": 0,
+  "live_sync_ms": null
+ },
+ "results": [
+  {
+   "id": "R1",
+   "name": "Reminders: turning them on saves this phone, and a test notification arrives through a real push service",
+   "status": "pass",
+   "ms": 11998,
+   "note": "Etc/GMT-4; “Leela reminders are on: You’ll get a notification 15 minutes before each sweet spot.”"
+  },
+  {
+   "id": "R2",
+   "name": "A reminder arrives before the sweet spot, sent by the every-minute schedule",
+   "status": "pass",
+   "ms": 1,
+   "note": "“Kai’s nap sweet spot is now. Sweet spot 12:45 – 1:15 PM.”"
+  },
+  {
+   "id": "R4",
+   "name": "Only one reminder per sleep: the next runs of the schedule send nothing more",
+   "status": "pass",
+   "ms": 125005,
+   "note": "one reminder"
+  },
+  {
+   "id": "R3",
+   "name": "Turning reminders off on the phone stops them",
+   "status": "pass",
+   "ms": 235,
+   "note": ""
+  }
+ ],
+ "errors": []
+}

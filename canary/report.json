@@ -1,0 +1,22 @@
+{
+ "summary": {
+  "run": "20261114-yrm8",
+  "mode": "canary",
+  "at": "2026-11-14T05:22:30.403Z",
+  "minutes": 0,
+  "pass": 1,
+  "fail": 0,
+  "skip": 0,
+  "live_sync_ms": null
+ },
+ "results": [
+  {
+   "id": "C1",
+   "name": "Long-running family: every entry from earlier runs is still there, unchanged",
+   "status": "pass",
+   "ms": 2238,
+   "note": "20 entries from 20 earlier runs over 13 days, all intact; 23 activity records"
+  }
+ ],
+ "errors": []
+}

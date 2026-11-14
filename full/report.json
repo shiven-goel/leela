@@ -1,0 +1,649 @@
+{
+ "summary": {
+  "run": "20261109-hnin",
+  "mode": "full",
+  "at": "2026-11-09T06:26:02.685Z",
+  "minutes": 6.1,
+  "pass": 90,
+  "fail": 0,
+  "skip": 0,
+  "live_sync_ms": {
+   "min": 776,
+   "median": 777,
+   "max": 780
+  }
+ },
+ "results": [
+  {
+   "id": "W1",
+   "name": "The published app is up at its public address",
+   "status": "pass",
+   "ms": 280,
+   "note": "https://shiven-goel.github.io/leela/"
+  },
+  {
+   "id": "A1",
+   "name": "Mom creates an account, no email confirmation needed",
+   "status": "pass",
+   "ms": 5502,
+   "note": ""
+  },
+  {
+   "id": "A2",
+   "name": "Mom starts a family, adds the baby and gets a family code",
+   "status": "pass",
+   "ms": 2468,
+   "note": ""
+  },
+  {
+   "id": "A3",
+   "name": "Dad creates an account",
+   "status": "pass",
+   "ms": 3477,
+   "note": ""
+  },
+  {
+   "id": "A4",
+   "name": "A wrong family code is refused",
+   "status": "pass",
+   "ms": 1337,
+   "note": "That code doesn’t match a family. Check it with whoever shared it. 4 tries left this hour."
+  },
+  {
+   "id": "A5",
+   "name": "Dad joins with the code typed in lower case, after seeing who is in the family",
+   "status": "pass",
+   "ms": 3118,
+   "note": ""
+  },
+  {
+   "id": "A6",
+   "name": "A wrong password is refused with a clear message",
+   "status": "pass",
+   "ms": 977,
+   "note": ""
+  },
+  {
+   "id": "A7",
+   "name": "Signing up twice with the same email says to sign in instead",
+   "status": "pass",
+   "ms": 2348,
+   "note": ""
+  },
+  {
+   "id": "L1",
+   "name": "A diaper logged in two taps appears on the other phone",
+   "status": "pass",
+   "ms": 1801,
+   "note": "780 ms"
+  },
+  {
+   "id": "T1",
+   "name": "A sleep that began 70 minutes ago and ended 50 minutes ago is saved at exactly those times, both picked on the clock",
+   "status": "pass",
+   "ms": 8270,
+   "note": "10:40–11:00"
+  },
+  {
+   "id": "L26",
+   "name": "Tapping Sleep by mistake starts nothing: the timer needs its own Start button",
+   "status": "pass",
+   "ms": 3898,
+   "note": ""
+  },
+  {
+   "id": "L2",
+   "name": "A sleep timer started on one phone runs on the other",
+   "status": "pass",
+   "ms": 1679,
+   "note": "778 ms"
+  },
+  {
+   "id": "L3",
+   "name": "Stopping it on the other phone ends it everywhere and saves the sleep",
+   "status": "pass",
+   "ms": 2316,
+   "note": "776 ms"
+  },
+  {
+   "id": "L4",
+   "name": "Both parents pressing Sleep at the same moment leaves exactly one timer",
+   "status": "pass",
+   "ms": 9933,
+   "note": ""
+  },
+  {
+   "id": "L27",
+   "name": "Ending a sleep by mistake can be undone, and the other phone follows",
+   "status": "pass",
+   "ms": 8249,
+   "note": ""
+  },
+  {
+   "id": "L5",
+   "name": "Breastfeeding timer: switch sides, pause and resume, all seen live by Dad",
+   "status": "pass",
+   "ms": 9999,
+   "note": ""
+  },
+  {
+   "id": "T2",
+   "name": "A breastfeed timer started 20 minutes ago, stopped from Edit details at 10 minutes ago: side time after that doesn’t count",
+   "status": "pass",
+   "ms": 7202,
+   "note": "11:31–11:41, left 600s, right 0s"
+  },
+  {
+   "id": "L6",
+   "name": "A bottle with its amount and formula shows on the other phone",
+   "status": "pass",
+   "ms": 1762,
+   "note": "776 ms"
+  },
+  {
+   "id": "L7",
+   "name": "Editing an entry updates the other phone",
+   "status": "pass",
+   "ms": 1702,
+   "note": "777 ms"
+  },
+  {
+   "id": "L8",
+   "name": "Delete, then Undo: the other phone follows both",
+   "status": "pass",
+   "ms": 2349,
+   "note": ""
+  },
+  {
+   "id": "L9",
+   "name": "Two people editing the same entry: the second save is caught, not silently lost",
+   "status": "pass",
+   "ms": 6270,
+   "note": ""
+  },
+  {
+   "id": "T3",
+   "name": "A past breastfeed with its start, end and sides; sides adding up to more than the feed are refused",
+   "status": "pass",
+   "ms": 2428,
+   "note": "11:06–11:26"
+  },
+  {
+   "id": "T4",
+   "name": "A bottle with an end time picked on the clock: its length shows on the other phone",
+   "status": "pass",
+   "ms": 2931,
+   "note": ""
+  },
+  {
+   "id": "L10",
+   "name": "Solids with a food, seen on the other phone",
+   "status": "pass",
+   "ms": 2065,
+   "note": ""
+  },
+  {
+   "id": "L11",
+   "name": "Growth: weight, length and head, seen on the other phone",
+   "status": "pass",
+   "ms": 2061,
+   "note": ""
+  },
+  {
+   "id": "L12",
+   "name": "A temperature high enough to warn about, seen on the other phone",
+   "status": "pass",
+   "ms": 2070,
+   "note": ""
+  },
+  {
+   "id": "L13",
+   "name": "A medicine with its dose, seen on the other phone",
+   "status": "pass",
+   "ms": 2050,
+   "note": ""
+  },
+  {
+   "id": "L14",
+   "name": "Symptoms, seen on the other phone",
+   "status": "pass",
+   "ms": 2283,
+   "note": ""
+  },
+  {
+   "id": "L15",
+   "name": "A doctor visit, seen on the other phone",
+   "status": "pass",
+   "ms": 2278,
+   "note": ""
+  },
+  {
+   "id": "L16",
+   "name": "A vaccine, seen on the other phone",
+   "status": "pass",
+   "ms": 2303,
+   "note": ""
+  },
+  {
+   "id": "L18",
+   "name": "Potty, for toddlers, seen on the other phone",
+   "status": "pass",
+   "ms": 2283,
+   "note": ""
+  },
+  {
+   "id": "L19",
+   "name": "Pumping is logged for the person who pumped",
+   "status": "pass",
+   "ms": 2707,
+   "note": ""
+  },
+  {
+   "id": "L17",
+   "name": "A bath with its start and end picked on the clock; an end before the start is refused",
+   "status": "pass",
+   "ms": 2951,
+   "note": ""
+  },
+  {
+   "id": "T5",
+   "name": "Changing an entry’s end time from History updates the other phone",
+   "status": "pass",
+   "ms": 3899,
+   "note": "now 20m"
+  },
+  {
+   "id": "L20",
+   "name": "A first with a photo: the photo uploads and shows on the other phone",
+   "status": "pass",
+   "ms": 5500,
+   "note": ""
+  },
+  {
+   "id": "L21",
+   "name": "The fever warning shows on Today",
+   "status": "pass",
+   "ms": 2,
+   "note": ""
+  },
+  {
+   "id": "L22",
+   "name": "Contraction timer",
+   "status": "pass",
+   "ms": 5191,
+   "note": ""
+  },
+  {
+   "id": "L23",
+   "name": "An activity timer runs on both phones",
+   "status": "pass",
+   "ms": 3114,
+   "note": ""
+  },
+  {
+   "id": "L24",
+   "name": "A diaper with colour and rash",
+   "status": "pass",
+   "ms": 1331,
+   "note": ""
+  },
+  {
+   "id": "L25",
+   "name": "A past nap with the times picked on the clock lands on yesterday",
+   "status": "pass",
+   "ms": 2440,
+   "note": ""
+  },
+  {
+   "id": "T6",
+   "name": "A night sleep from 11:40 PM to 2:15 AM is 2h 35m, and shows on the morning it ended",
+   "status": "pass",
+   "ms": 2616,
+   "note": ""
+  },
+  {
+   "id": "O1",
+   "name": "Offline: three diapers wait on the phone, then sync once, with no duplicates",
+   "status": "pass",
+   "ms": 15193,
+   "note": "1 → 4"
+  },
+  {
+   "id": "O2",
+   "name": "The app opens with no connection, from the copy on the phone",
+   "status": "pass",
+   "ms": 257,
+   "note": ""
+  },
+  {
+   "id": "H1",
+   "name": "A forgotten bottle added to two days ago lands on that day, for both parents",
+   "status": "pass",
+   "ms": 4972,
+   "note": ""
+  },
+  {
+   "id": "H2",
+   "name": "Ten days of logging: an entry on each of the last ten days",
+   "status": "pass",
+   "ms": 31350,
+   "note": ""
+  },
+  {
+   "id": "H3",
+   "name": "Day 11 on a brand-new phone: all ten days are still there",
+   "status": "pass",
+   "ms": 10661,
+   "note": "10 of 10 days"
+  },
+  {
+   "id": "H4",
+   "name": "A log from 380 days ago, over a year back, is saved and shown on its day",
+   "status": "pass",
+   "ms": 4750,
+   "note": ""
+  },
+  {
+   "id": "N1",
+   "name": "A very long note with two photos saves, and Leela offers to log what it mentions",
+   "status": "pass",
+   "ms": 3178,
+   "note": "12,707 characters"
+  },
+  {
+   "id": "N2",
+   "name": "Dad sees the note with its full text and photos, and what it logged",
+   "status": "pass",
+   "ms": 2374,
+   "note": ""
+  },
+  {
+   "id": "N3",
+   "name": "An unsaved note survives the app closing",
+   "status": "pass",
+   "ms": 3327,
+   "note": ""
+  },
+  {
+   "id": "N4",
+   "name": "Shorthand Leela doesn’t know: it asks once, learns it, and the other parent benefits",
+   "status": "pass",
+   "ms": 4509,
+   "note": ""
+  },
+  {
+   "id": "N5",
+   "name": "Searching notes; plain notes don’t ask anything",
+   "status": "pass",
+   "ms": 3618,
+   "note": ""
+  },
+  {
+   "id": "I1",
+   "name": "Import a Word document (a Google Doc saved as .docx)",
+   "status": "pass",
+   "ms": 3267,
+   "note": "4 entries"
+  },
+  {
+   "id": "I2",
+   "name": "Import a PDF",
+   "status": "pass",
+   "ms": 3214,
+   "note": "4 entries"
+  },
+  {
+   "id": "I3",
+   "name": "Import an Excel sheet",
+   "status": "pass",
+   "ms": 2084,
+   "note": "3 entries"
+  },
+  {
+   "id": "I4",
+   "name": "Import a tracking-app CSV export",
+   "status": "pass",
+   "ms": 2066,
+   "note": "3 entries"
+  },
+  {
+   "id": "I5",
+   "name": "Import a WhatsApp chat export",
+   "status": "pass",
+   "ms": 3266,
+   "note": "3 entries"
+  },
+  {
+   "id": "I6",
+   "name": "Importing the same file again skips everything already there",
+   "status": "pass",
+   "ms": 1300,
+   "note": ""
+  },
+  {
+   "id": "I7",
+   "name": "An import can be undone, and both phones drop it",
+   "status": "pass",
+   "ms": 3399,
+   "note": ""
+  },
+  {
+   "id": "B1",
+   "name": "The diary groups notes, firsts and photos by month of life",
+   "status": "pass",
+   "ms": 331,
+   "note": ""
+  },
+  {
+   "id": "B2",
+   "name": "The diary book prints to a PDF with the months, notes and photos",
+   "status": "pass",
+   "ms": 1471,
+   "note": "21 pages, 4 images, 166 KB"
+  },
+  {
+   "id": "F1",
+   "name": "A second baby keeps separate logs",
+   "status": "pass",
+   "ms": 6161,
+   "note": ""
+  },
+  {
+   "id": "F2",
+   "name": "A new name shows on the partner’s phone, on old entries too",
+   "status": "pass",
+   "ms": 2722,
+   "note": ""
+  },
+  {
+   "id": "F3",
+   "name": "Units are per person: °F and inches for Mom, °C and cm for Dad",
+   "status": "pass",
+   "ms": 1415,
+   "note": ""
+  },
+  {
+   "id": "F4",
+   "name": "Night hours changed by one parent reach the other",
+   "status": "pass",
+   "ms": 948,
+   "note": ""
+  },
+  {
+   "id": "F5",
+   "name": "Night theme",
+   "status": "pass",
+   "ms": 63,
+   "note": ""
+  },
+  {
+   "id": "F6",
+   "name": "The owner resets the code: the old one stops working, the new one works",
+   "status": "pass",
+   "ms": 7157,
+   "note": ""
+  },
+  {
+   "id": "F7",
+   "name": "Removing a member cuts their access straight away",
+   "status": "pass",
+   "ms": 1859,
+   "note": ""
+  },
+  {
+   "id": "F8",
+   "name": "Ownership can be handed to the other parent",
+   "status": "pass",
+   "ms": 2066,
+   "note": ""
+  },
+  {
+   "id": "F9",
+   "name": "Editing a baby’s details reaches the other phone",
+   "status": "pass",
+   "ms": 2414,
+   "note": ""
+  },
+  {
+   "id": "P1",
+   "name": "Sweet spot predicts the next nap, the rest of the day and bedtime from the baby’s own week",
+   "status": "pass",
+   "ms": 2279,
+   "note": "next nap 12:25 – 12:55 PM, nap 3 ~4:10 PM, bed ~7:20 PM"
+  },
+  {
+   "id": "P2",
+   "name": "Sweet spot settings are shared: 2 naps a day set on one phone shows on the other",
+   "status": "pass",
+   "ms": 4698,
+   "note": ""
+  },
+  {
+   "id": "V1",
+   "name": "History › Week draws the last seven days as a chart, and tapping a day opens it",
+   "status": "pass",
+   "ms": 470,
+   "note": "6 sleeps, 7 feeds and 14 diapers drawn; opened Mon9"
+  },
+  {
+   "id": "V2",
+   "name": "History › Trends has a chart for each kind of entry, each with a table of its numbers",
+   "status": "pass",
+   "ms": 752,
+   "note": "11 charts, growth 3rd percentile"
+  },
+  {
+   "id": "S1",
+   "name": "A stranger with a family of their own sees none of ours",
+   "status": "pass",
+   "ms": 6301,
+   "note": ""
+  },
+  {
+   "id": "S2",
+   "name": "A stranger can’t read, add, change, join or listen in through the API",
+   "status": "pass",
+   "ms": 11379,
+   "note": ""
+  },
+  {
+   "id": "S3",
+   "name": "Guessing codes is stopped after 5 wrong tries an hour",
+   "status": "pass",
+   "ms": 2077,
+   "note": ""
+  },
+  {
+   "id": "S4",
+   "name": "The last person to leave a family closes it",
+   "status": "pass",
+   "ms": 2037,
+   "note": ""
+  },
+  {
+   "id": "D1",
+   "name": "The activity log records who did what",
+   "status": "pass",
+   "ms": 2123,
+   "note": "154 items read"
+  },
+  {
+   "id": "D2",
+   "name": "Download everything: a full backup with every entry and every change",
+   "status": "pass",
+   "ms": 1800,
+   "note": "105 entries (102 active), 165 changes, 3 babies, 6 imports"
+  },
+  {
+   "id": "D3",
+   "name": "The database agrees with the phones",
+   "status": "pass",
+   "ms": 628,
+   "note": "105 entries (diaper 24, sleep 44, nursing 5, bottle 7, solids 1, growth 1, temperature 1, medicine 3, symptom 3, potty 1, pump 1, activity 3, milestone 3, contraction 1, note 4), 165 activity records"
+  },
+  {
+   "id": "D4",
+   "name": "Nothing can be permanently erased, not even by the family through the API",
+   "status": "pass",
+   "ms": 1271,
+   "note": ""
+  },
+  {
+   "id": "D5",
+   "name": "Signing out and back in brings everything back",
+   "status": "pass",
+   "ms": 1062,
+   "note": ""
+  },
+  {
+   "id": "D6",
+   "name": "The app can be installed: manifest and offline worker",
+   "status": "pass",
+   "ms": 2,
+   "note": ""
+  },
+  {
+   "id": "X1",
+   "name": "A parent can leave; the family carries on for the other",
+   "status": "pass",
+   "ms": 2201,
+   "note": ""
+  },
+  {
+   "id": "X2",
+   "name": "The test family is closed at the end, so its code stops working",
+   "status": "pass",
+   "ms": 1796,
+   "note": ""
+  },
+  {
+   "id": "R1",
+   "name": "Reminders: turning them on saves this phone, and a test notification arrives through a real push service",
+   "status": "pass",
+   "ms": 8659,
+   "note": "Etc/GMT-7; “Leela reminders are on: You’ll get a notification 15 minutes before each sweet spot.”"
+  },
+  {
+   "id": "R2",
+   "name": "A reminder arrives before the sweet spot, sent by the every-minute schedule",
+   "status": "pass",
+   "ms": 41568,
+   "note": "“Kai’s nap sweet spot is now. Sweet spot 1:20 – 1:50 PM.”"
+  },
+  {
+   "id": "R3",
+   "name": "Turning reminders off on the phone stops them",
+   "status": "pass",
+   "ms": 243,
+   "note": ""
+  },
+  {
+   "id": "C1",
+   "name": "Long-running family: every entry from earlier runs is still there, unchanged",
+   "status": "pass",
+   "ms": 1081,
+   "note": "15 entries from 15 earlier runs over 8 days, all intact; 18 activity records"
+  }
+ ],
+ "errors": []
+}
