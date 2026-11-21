@@ -911,10 +911,19 @@ function PumpHint({ events, tz }: { events: LeelaEvent[]; tz: string }) {
   const now = Date.now()
   const p = pumpDue(events as never, now, tz)
   if (!p) return null
-  const due = p.dueAt <= now ? `due now (${p.dueAt < now - 10 * 60_000 ? `since ${fmtTime(p.dueAt, tz)}` : 'about now'})` : `next about ${fmtTime(p.dueAt, tz)}`
+  const line = (x: Omit<NonNullable<typeof p>, 'other'>, both: boolean) => {
+    const due = x.dueAt <= now ? (x.dueAt < now - 10 * 60_000 ? `due since ${fmtTime(x.dueAt, tz)}` : 'due now') : `next about ${fmtTime(x.dueAt, tz)}`
+    return (
+      <span className="block">
+        <strong className="font-semibold">{both ? (x.side === 'left' ? 'Left: ' : 'Right: ') : ''}{due}.</strong> Last emptied {fmtTime(x.lastAt, tz)} by {x.lastKind === 'pump' ? 'pumping' : 'a breastfeed'}, {durationText(now - x.lastAt)} ago;{' '}
+        {x.basis === 'logs' ? `usually ${durationText(x.everyMin * 60_000)} between, around then` : 'about 3 hours between is usual'}.
+      </span>
+    )
+  }
   return (
-    <p className="mb-4 rounded-2xl bg-[var(--pump-soft)] px-4 py-3 text-[15px] leading-snug">
-      Last emptied {fmtTime(p.lastAt, tz)} ({p.lastKind === 'pump' ? 'pumping' : 'breastfeed'}), {durationText(now - p.lastAt)} ago. {p.basis === 'logs' ? `Your usual gap around then is ${durationText(p.everyMin * 60_000)}` : 'Every 3 hours is usual'}, so {due}.
+    <p className="mb-4 space-y-1.5 rounded-2xl bg-[var(--pump-soft)] px-4 py-3 text-[15px] leading-snug">
+      {line(p, Boolean(p.other))}
+      {p.other && line(p.other, true)}
     </p>
   )
 }

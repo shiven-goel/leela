@@ -32,6 +32,21 @@ assert.equal(pumpDue(events, at('21', '12:30') + 5 * 86_400_000, TZ), null)
 const few = pumpDue([ev('nursing', at('21', '10:00'), at('21', '10:15'))], at('21', '11:00'), TZ)!
 assert.equal(few.basis, 'default')
 assert.equal(few.dueAt, at('21', '13:15'))
+// Side by side: fed on the right while pumping the left; the left was emptied again later.
+{
+  const evs = [
+    ev('nursing', at('21', '08:00'), at('21', '08:30'), { data: { right_s: 1800 } }),
+    ev('pump', at('21', '08:00'), at('21', '08:25'), { data: { left_ml: 40 } }),
+    ev('nursing', at('21', '10:00'), at('21', '10:20'), { data: { left_s: 1200 } }),
+  ]
+  const q = pumpDue(evs, at('21', '11:00'), TZ)!
+  assert.equal(q.side, 'right', 'the right was emptied longest ago')
+  assert.equal(q.lastAt, at('21', '08:30'))
+  assert.equal(q.dueAt, at('21', '11:30'))
+  assert.equal(q.other?.side, 'left')
+  assert.equal(q.other?.dueAt, at('21', '13:20'))
+}
+
 // Off unless turned on.
 assert.equal(readAlerts({}).pump, false)
 assert.equal(readAlerts({ alerts: { pump: true } }).pump, true)

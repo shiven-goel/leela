@@ -127,11 +127,9 @@ export function TodayScreen() {
   const pumpSub = runningPump
     ? `Going ${durationText(now - Date.parse(runningPump.started_at))}`
     : pumpNext
-      ? pumpNext.dueAt > now
-        ? `Next ~${fmtTime(pumpNext.dueAt, tz)}`
-        : now - pumpNext.dueAt < 10 * 60_000
-          ? 'Due now'
-          : `Due ${durationText(now - pumpNext.dueAt)} ago`
+      ? `${pumpNext.other ? (pumpNext.side === 'left' ? 'Left ' : 'Right ') : ''}${
+          pumpNext.dueAt > now ? `~${fmtTime(pumpNext.dueAt, tz)}` : now - pumpNext.dueAt < 10 * 60_000 ? 'due now' : `due ${durationText(now - pumpNext.dueAt)} ago`
+        }`
       : totals.pumpMl
         ? `${totals.pumpMl} ml today`
         : 'Start now'

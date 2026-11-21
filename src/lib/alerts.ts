@@ -79,49 +79,52 @@ export function medicinesDue(events: Ev[], childId: string): MedicineDue[] {
 }
 
 // ------------------------------------------------------------------------- pumping
+export type Breast = 'left' | 'right'
+
 export interface PumpDue {
-  /** When the breasts were last emptied: the end of the last breastfeed or pumping. */
+  /** The breast to pump next: the one due first. */
+  side: Breast
+  /** When it was last emptied: the end of its last breastfeed or pumping. */
   lastAt: number
   lastKind: 'nursing' | 'pump'
-  /** Usual time from one emptying to the next around this time of day, minutes. */
+  /** Usual time between emptyings of that breast around this time of day, minutes. */
   everyMin: number
   dueAt: number
   /** Learned from the logs, or the usual 3 hours. */
   basis: 'logs' | 'default'
+  /** The other breast, when it's known too. */
+  other?: Omit<PumpDue, 'other'>
 }
 
 const MIN = 60_000
-/** When an emptying ended: its end, or its start plus its logged length. Null while it's going. */
-function endOf(e: Ev): number | null {
-  if (e.timer_state) return null
-  if (e.ended_at) return Date.parse(e.ended_at)
+const num = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : 0)
+
+/** Which breasts an entry emptied: the sides with time or millilitres, or both when not noted. */
+function sidesOf(e: Ev): Breast[] {
   const d = e.data ?? {}
-  const secs = Number(d.left_s ?? 0) + Number(d.right_s ?? 0) || Number(d.total_s ?? 0)
-  return Date.parse(e.started_at) + (Number.isFinite(secs) ? secs * 1000 : 0)
+  const l = e.type === 'pump' ? num(d.left_ml) > 0 : num(d.left_s) > 0
+  const r = e.type === 'pump' ? num(d.right_ml) > 0 : num(d.right_s) > 0
+  return l || r ? [...(l ? ['left' as const] : []), ...(r ? ['right' as const] : [])] : ['left', 'right']
 }
 
-/**
- * When the next pumping is due: from when the breasts were last emptied (a breastfeed or a
- * pumping, whichever was later), plus the mother's own usual gap at this time of day, learned
- * from the last week (recent days and nearby hours count most). Null while feeding or pumping,
- * or with nothing logged in the last two days.
- */
-export function pumpDue(events: Ev[], now: number, timeZone: string): PumpDue | null {
-  const all = events
-    .filter((e) => !e.deleted_at && (e.type === 'nursing' || e.type === 'pump') && Date.parse(e.started_at) <= now && Date.parse(e.started_at) > now - 8 * 24 * H)
-    .sort((a, b) => a.started_at.localeCompare(b.started_at))
-  if (all.some((e) => e.timer_state && Date.parse(e.started_at) > now - 3 * H)) return null
-  // A breastfeed followed by pumping within 45 minutes is one emptying.
+/** When an emptying ended: its end, or its start plus its logged length. */
+function endOf(e: Ev): number {
+  if (e.ended_at) return Date.parse(e.ended_at)
+  const d = e.data ?? {}
+  const secs = num(d.left_s) + num(d.right_s) || num(d.total_s)
+  return Date.parse(e.started_at) + secs * 1000
+}
+
+function forSide(all: Ev[], side: Breast, now: number, timeZone: string): Omit<PumpDue, 'other'> | null {
+  // Emptyings of this breast; a breastfeed and a pumping within 45 minutes are one.
   const sessions: { start: number; end: number; kind: 'nursing' | 'pump' }[] = []
   for (const e of all) {
+    if (!sidesOf(e).includes(side)) continue
     const start = Date.parse(e.started_at)
-    const end = Math.max(start, endOf(e) ?? start)
+    const end = Math.max(start, endOf(e))
     const last = sessions[sessions.length - 1]
     if (last && start - last.end < 45 * MIN) {
-      if (end >= last.end) {
-        last.end = end
-        last.kind = e.type as 'nursing' | 'pump'
-      }
+      if (end >= last.end) Object.assign(last, { end, kind: e.type })
     } else sessions.push({ start, end, kind: e.type as 'nursing' | 'pump' })
   }
   const last = sessions[sessions.length - 1]
@@ -130,9 +133,10 @@ export function pumpDue(events: Ev[], now: number, timeZone: string): PumpDue | 
   const xs: { v: number; w: number }[] = []
   for (let i = 0; i + 1 < sessions.length; i++) {
     const gap = (sessions[i + 1].start - sessions[i].end) / MIN
-    if (gap < 40 || gap > 9 * 60) continue
+    if (gap < 40 || gap > 10 * 60) continue
     let d = Math.abs(localMinute(sessions[i].end, timeZone) - t0)
     d = Math.min(d, 1440 - d)
+    // Gaps that began near this time of day, and recent days, count most.
     const w = Math.exp(-((d / 120) ** 2) / 2) * Math.pow(0.5, (now - sessions[i].end) / (3 * 24 * H))
     if (w > 0.01) xs.push({ v: gap, w })
   }
@@ -149,10 +153,28 @@ export function pumpDue(events: Ev[], now: number, timeZone: string): PumpDue | 
         break
       }
     }
-    every = Math.min(6 * 60, Math.max(90, Math.round(every / 5) * 5))
+    every = Math.min(8 * 60, Math.max(90, Math.round(every / 5) * 5))
     basis = 'logs'
   }
-  return { lastAt: last.end, lastKind: last.kind, everyMin: every, dueAt: last.end + every * MIN, basis }
+  return { side, lastAt: last.end, lastKind: last.kind, everyMin: every, dueAt: last.end + every * MIN, basis }
+}
+
+/**
+ * When to pump next, breast by breast: from when each was last emptied (by a breastfeed or by
+ * pumping, whichever was later) plus the mother's own usual gap for it at that time of day,
+ * learned from the last week. Null while feeding or pumping, or with nothing logged lately.
+ */
+export function pumpDue(events: Ev[], now: number, timeZone: string): PumpDue | null {
+  const all = events
+    .filter((e) => !e.deleted_at && (e.type === 'nursing' || e.type === 'pump') && Date.parse(e.started_at) <= now && Date.parse(e.started_at) > now - 8 * 24 * H)
+    .sort((a, b) => a.started_at.localeCompare(b.started_at))
+  if (all.some((e) => e.timer_state && Date.parse(e.started_at) > now - 3 * H)) return null
+  const done = all.filter((e) => !e.timer_state)
+  const l = forSide(done, 'left', now, timeZone)
+  const r = forSide(done, 'right', now, timeZone)
+  if (!l || !r) return l ?? r
+  const [first, second] = l.dueAt <= r.dueAt ? [l, r] : [r, l]
+  return { ...first, other: second }
 }
 
 // ------------------------------------------------------------------------- time zones

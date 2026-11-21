@@ -239,9 +239,9 @@ async function others(admin: Db, vapid: Vapid, now: number, subs: Sub[], member:
     const p = pumpDue(((emptying ?? []) as Row[]).filter((e) => e.family_id === fam.id) as never, now, tz)
     if (!p || now < p.dueAt || now >= p.dueAt + 2 * H) continue
     for (const sub of phones) {
-      await send(sub, kid, `pump/${p.lastAt}`, {
-        title: 'Time to pump',
-        body: `Last emptied ${clockText(p.lastAt, tz)} (${p.lastKind === 'pump' ? 'pumping' : 'breastfeed'}), ${hoursText(now - p.lastAt)} ago.`,
+      await send(sub, kid, `pump/${p.side}/${p.lastAt}`, {
+        title: p.other ? `Time to pump: ${p.side} side` : 'Time to pump',
+        body: `${p.other ? `${p.side === 'left' ? 'Left' : 'Right'} side last` : 'Last'} emptied ${clockText(p.lastAt, tz)} (${p.lastKind === 'pump' ? 'pumping' : 'breastfeed'}), ${hoursText(now - p.lastAt)} ago.`,
         tag: `pump-${fam.id}`,
         open: 'today',
       })
