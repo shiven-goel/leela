@@ -95,7 +95,7 @@ function meaningForDraft(d: Draft): string | null {
     case 'temperature':
       return 'temp'
     case 'activity':
-      return d.data.kind === 'bath' ? 'bath' : d.data.kind === 'tummy' ? 'tummy' : d.data.label === 'Massage' ? 'massage' : null
+      return d.data.kind === 'bath' ? 'bath' : d.data.kind === 'tummy' ? 'tummy' : d.data.kind === 'massage' || d.data.label === 'Massage' ? 'massage' : null
     default:
       return null
   }

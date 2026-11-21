@@ -116,7 +116,16 @@ export function seed(variant: string) {
   add('medicine', now - 5 * H, null, { name: 'Calpol', dose: '2.5', unit: 'ml', every_h: 6 }, 'u1')
   add('diaper', now - 75 * MIN, null, { kind: 'wet', ghar: { by: 'Nani', member: 'm1', room: 'Nani’s room' } }, 'u1', { created_by: null, updated_by: null })
   add('note', now - 40 * MIN, null, { ghar: { by: 'Asha (nanny)', member: 'm2' } }, 'u1', { created_by: null, updated_by: null, notes: 'Played on the mat, happy.' })
-  child.settings = { vaccines: { before: ['bcg', 'opv0', 'hepb1'] } }
+  // Daily vitamins: Vitamin D given this morning, iron still to give. A massage before the bath.
+  add('medicine', now - 3 * H, null, { name: 'Vitamin D', dose: '1', unit: 'drops', supplement: true }, 'u2')
+  add('activity', now - 4 * H, now - 4 * H + 15 * MIN, { kind: 'massage' }, 'u1')
+  child.settings = {
+    vaccines: { before: ['bcg', 'opv0', 'hepb1'] },
+    supplements: [
+      { id: 's1', name: 'Vitamin D', dose: '1', unit: 'drops' },
+      { id: 's2', name: 'Iron', dose: '0.5', unit: 'ml' },
+    ],
+  }
 
   // Remove anything in the future relative to the chosen scenario, then add the live timers.
   if (variant === 'asleep') {

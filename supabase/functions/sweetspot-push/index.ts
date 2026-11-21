@@ -140,7 +140,8 @@ async function remind(admin: Db, vapid: Vapid) {
     if (!fam) continue
     const spot = sweetSpot(sleeps.filter((e) => e.child_id === kid.id) as never, kid, fam, now)
     const w = spot.next
-    if (spot.status !== 'ok' || !w) continue
+    // No reminder for going back to sleep in the night.
+    if (spot.status !== 'ok' || !w || w.resettle) continue
     const slot = `${localDate(w.center, fam.timezone)}/${w.kind === 'bedtime' ? 'bed' : `nap${w.napNumber ?? ''}`}`
     const endpoints = new Set<string>()
     for (const sub of (subs as Sub[]).filter((s) => s.family_id === kid.family_id && member.has(`${s.family_id}/${s.user_id}`))) {

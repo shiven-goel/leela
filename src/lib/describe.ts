@@ -14,6 +14,8 @@ export function eventTitle(e: LeelaEvent, family: Family | null): string {
       return ACTIVITY_KINDS.find((k) => k.id === e.data.kind)?.label ?? e.data.label ?? 'Activity'
     case 'milestone':
       return MILESTONE_KINDS.find((k) => k.id === e.data.kind)?.label ?? e.data.label ?? 'Milestone'
+    case 'medicine':
+      return e.data.supplement && e.data.name ? e.data.name : 'Medicine'
     case 'symptom':
       return e.data.kind === 'visit' ? 'Doctor visit' : e.data.kind === 'vaccine' ? 'Vaccine' : 'Symptoms'
     default:
@@ -129,7 +131,8 @@ export function eventDetail(
       if (d.method) parts.push(TEMP_METHODS.find((m) => m.id === d.method)?.label.toLowerCase() ?? '')
       break
     case 'medicine':
-      parts.push([d.name, d.dose, d.dose ? d.unit : undefined].filter(Boolean).join(' '))
+      if (d.supplement && d.name) parts.push(['Daily vitamin', d.dose ? `${d.dose} ${d.unit ?? ''}`.trim() : ''].filter(Boolean).join(' · '))
+      else parts.push([d.name, d.dose, d.dose ? d.unit : undefined].filter(Boolean).join(' '))
       if (d.every_h) parts.push(`next in ${d.every_h} h`)
       break
     case 'symptom':

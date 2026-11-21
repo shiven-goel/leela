@@ -4,7 +4,9 @@ import {
   BookOpen,
   BowlFood,
   DropHalfBottom,
+  Eyedropper,
   HandHeart,
+  HandPalm,
   MoonStars,
   NotePencil,
   Pill,
@@ -80,12 +82,18 @@ const PH: Partial<Record<EventType, ComponentType<IconProps>>> = {
 const ACTIVITY_ICONS: Record<string, ComponentType<IconProps>> = {
   tummy: Baby,
   bath: Bathtub,
+  massage: HandPalm,
   outdoor: Sun,
   indoor: Plant,
   story: BookOpen,
   screen: Television,
   skin: HandHeart,
   teeth: Tooth,
+}
+
+/** Daily vitamins and supplements: a dropper, as most baby vitamins are drops. */
+export function VitaminIcon({ size = 24, className }: Svg) {
+  return <Eyedropper size={size} weight="duotone" className={className} aria-hidden="true" />
 }
 
 export function TypeIcon({ type, kind, size = 22, className }: { type: EventType; kind?: string; size?: number; className?: string }) {

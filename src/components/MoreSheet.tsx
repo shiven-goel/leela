@@ -10,6 +10,7 @@ export function MoreSheet({
   onPick,
   dayLabel,
   onVaccines,
+  onVitamins,
 }: {
   open: boolean
   onClose: () => void
@@ -17,6 +18,8 @@ export function MoreSheet({
   dayLabel?: string
   /** Opens the vaccine schedule (shown under Health). */
   onVaccines?: () => void
+  /** Opens today's vitamins (shown under Health). */
+  onVitamins?: () => void
 }) {
   return (
     <Sheet open={open} onClose={onClose} title={dayLabel ? `Add to ${dayLabel}` : 'Log something'}>
@@ -45,6 +48,11 @@ export function MoreSheet({
           {g.title === 'Health' && onVaccines && (
             <button type="button" onClick={onVaccines} className="mt-2 flex min-h-12 w-full items-center justify-between rounded-2xl bg-card-2 px-4 text-[16px] font-semibold ring-1 ring-line">
               Vaccine schedule <CaretRight size={18} weight="bold" className="text-ink-3" aria-hidden="true" />
+            </button>
+          )}
+          {g.title === 'Health' && onVitamins && (
+            <button type="button" onClick={onVitamins} className="mt-2 flex min-h-12 w-full items-center justify-between rounded-2xl bg-card-2 px-4 text-[16px] font-semibold ring-1 ring-line">
+              Daily vitamins <CaretRight size={18} weight="bold" className="text-ink-3" aria-hidden="true" />
             </button>
           )}
         </section>

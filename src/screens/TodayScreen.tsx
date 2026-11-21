@@ -1,8 +1,8 @@
 import clsx from 'clsx'
-import { ChartBar, CloudSlash, DotsThreeOutline, Plus, X } from '@phosphor-icons/react'
+import { ChartBar, Check, CloudSlash, DotsThreeOutline, Plus, X } from '@phosphor-icons/react'
 import { useMemo, useState } from 'react'
 import { DayRing } from '../components/DayRing'
-import { BottleIcon, DiaperIcon, TypeIcon } from '../components/Icon'
+import { BottleIcon, DiaperIcon, TypeIcon, VitaminIcon } from '../components/Icon'
 import { LogSheet } from '../components/LogSheet'
 import { MoreSheet } from '../components/MoreSheet'
 import { SleepSheet } from '../components/SleepSheet'
@@ -11,11 +11,13 @@ import { TimerCard } from '../components/TimerCard'
 import { Timeline } from '../components/Timeline'
 import { ChildSheet } from '../components/ChildSheet'
 import { HealthCards } from '../components/HealthCards'
+import { VitaminsSheet } from '../components/Vitamins'
 import { useNow } from '../hooks/useNow'
 import { showsFor } from '../lib/config'
 import { lastOf, sleepState, totalsFor } from '../lib/counting'
 import { eventDetail, eventTitle } from '../lib/describe'
 import { phase, sweetSpot } from '../lib/sweetspot'
+import { givenToday, readSupplements, vitaminsSub } from '../lib/supplements'
 import { activeChild, loggedBy, myPrefs, useLeela } from '../lib/store'
 import { ageText, agoText, dayStart, durationText, fmtTime } from '../lib/time'
 import type { EventData, EventType, LeelaEvent } from '../lib/types'
@@ -42,6 +44,7 @@ export function TodayScreen() {
   const [addChild, setAddChild] = useState(false)
   const [sleepOpen, setSleepOpen] = useState(false)
   const [spotOpen, setSpotOpen] = useState(false)
+  const [vitaminsOpen, setVitaminsOpen] = useState(false)
 
   const events = useMemo(() => Object.values(eventsMap).filter((e) => !e.deleted_at), [eventsMap])
   const segs = useMemo(() => Object.values(segments), [segments])
@@ -81,8 +84,12 @@ export function TodayScreen() {
   const next = spot.next
   const ringLine =
     state.asleep && state.since
-      ? `since ${fmtTime(state.since, tz)}`
-      : spot.status === 'ok' && next
+      ? spot.wakeAround && (spot.status === 'napping' || spot.status === 'night')
+        ? `likely up ~${fmtTime(spot.wakeAround, tz)}`
+        : `since ${fmtTime(state.since, tz)}`
+      : spot.status === 'ok' && next?.resettle
+        ? 'Back to sleep when ready'
+        : spot.status === 'ok' && next
         ? phase(next, now) === 'soon'
           ? `${next.kind === 'bedtime' ? 'Bedtime' : 'Next nap'} ~${fmtTime(next.center, tz)}`
           : phase(next, now) === 'now'
@@ -112,11 +119,13 @@ export function TodayScreen() {
   const pumpSessions = todays.filter((e) => e.type === 'pump').length
   const runningBottle = running.find((e) => e.type === 'bottle')
   const runningPump = running.find((e) => e.type === 'pump')
-  const lastBath = events
-    .filter((e) => e.type === 'activity' && e.child_id === child.id && e.data.kind === 'bath')
-    .reduce<LeelaEvent | undefined>((best, e) => (!best || e.started_at > best.started_at ? e : best), undefined)
+  const latest = (f: (e: LeelaEvent) => boolean) => events.filter((e) => e.child_id === child.id && f(e)).reduce<LeelaEvent | undefined>((best, e) => (!best || e.started_at > best.started_at ? e : best), undefined)
+  const lastBath = latest((e) => e.type === 'activity' && e.data.kind === 'bath')
+  const lastMassage = latest((e) => e.type === 'activity' && (e.data.kind === 'massage' || e.data.label === 'Massage'))
+  const vitamins = readSupplements(child.settings)
+  const vitaminsLeft = vitamins.filter((s) => !givenToday(events, child.id, s, now, tz)).length
 
-  const tiles: { id: string; label: string; sub: string; tone: string; icon: React.ReactNode; onClick: () => void; active?: boolean }[] = [
+  const tiles: { id: string; label: string; sub: string; tone: string; icon: React.ReactNode; onClick: () => void; active?: boolean; done?: boolean }[] = [
     {
       id: 'sleep',
       label: runningSleep ? 'Wake up' : 'Sleep',
@@ -168,6 +177,31 @@ export function TodayScreen() {
       tone: 'activity',
       icon: <TypeIcon type="activity" kind="bath" size={28} />,
       onClick: () => setSheet({ type: 'activity', preset: { kind: 'bath' } }),
+    },
+    {
+      id: 'massage',
+      label: 'Massage',
+      sub: lastMassage ? agoText(lastMassage.started_at, now) : 'Start now',
+      tone: 'activity',
+      icon: <TypeIcon type="activity" kind="massage" size={28} />,
+      onClick: () => setSheet({ type: 'activity', preset: { kind: 'massage' } }),
+    },
+    {
+      id: 'vitamins',
+      label: 'Vitamins',
+      sub: vitaminsSub(vitamins, (s) => Boolean(givenToday(events, child.id, s, now, tz))),
+      tone: 'health',
+      icon: <VitaminIcon size={28} />,
+      done: vitamins.length > 0 && vitaminsLeft === 0,
+      onClick: () => setVitaminsOpen(true),
+    },
+    {
+      id: 'more',
+      label: 'More',
+      sub: 'Health, play, notes',
+      tone: 'none',
+      icon: <DotsThreeOutline size={28} weight="fill" />,
+      onClick: () => setMore(true),
     },
   ]
 
@@ -229,15 +263,20 @@ export function TodayScreen() {
             key={t.id}
             type="button"
             onClick={t.onClick}
-            className={clsx('flex min-h-[92px] flex-col items-start justify-between gap-1 rounded-[22px] p-3 text-left active:scale-[0.98]', t.active && 'ring-2')}
+            className={clsx('relative flex min-h-[92px] flex-col items-start justify-between gap-1 rounded-[22px] p-3 text-left active:scale-[0.98]', t.active && 'ring-2', t.tone === 'none' && 'bg-card')}
             style={{
-              background: `var(--${t.tone}-soft)`,
+              ...(t.tone === 'none' ? {} : { background: `var(--${t.tone}-soft)` }),
               ...(t.active ? { ['--tw-ring-color' as string]: `var(--${t.tone})` } : {}),
             }}
           >
-            <span className="shrink-0" style={{ color: `var(--${t.tone})` }}>
+            <span className="shrink-0" style={{ color: t.tone === 'none' ? 'var(--ink-2)' : `var(--${t.tone})` }}>
               {t.icon}
             </span>
+            {t.done && (
+              <span className="absolute top-3 right-3 grid h-6 w-6 place-items-center rounded-full text-white" style={{ background: `var(--${t.tone})` }} aria-label="Done today">
+                <Check size={14} weight="bold" aria-hidden="true" />
+              </span>
+            )}
             <span className="min-w-0">
               <span className="block font-display text-[19px] font-bold leading-tight">{t.label}</span>
               <span className="block truncate text-[12.5px] leading-snug text-ink-2">{t.sub}</span>
@@ -245,13 +284,6 @@ export function TodayScreen() {
           </button>
         ))}
       </div>
-      <button
-        type="button"
-        onClick={() => setMore(true)}
-        className="mt-2.5 flex min-h-12 w-full items-center justify-center gap-2 rounded-[18px] bg-card text-[16px] font-semibold text-ink-2"
-      >
-        <DotsThreeOutline size={22} weight="fill" aria-hidden="true" /> More: health, play, firsts, notes
-      </button>
 
       <section className="mt-7" aria-labelledby="today-h">
         <div className="mb-3 flex items-end justify-between">
@@ -293,6 +325,10 @@ export function TodayScreen() {
           setMore(false)
           set({ overlay: { kind: 'vaccines' } })
         }}
+        onVitamins={() => {
+          setMore(false)
+          setVitaminsOpen(true)
+        }}
         onPick={(t) => {
           setMore(false)
           if (t === 'note') useLeela.getState().set({ overlay: { kind: 'note' } })
@@ -313,6 +349,18 @@ export function TodayScreen() {
         onEdit={(e) => {
           setSleepOpen(false)
           setSheet({ type: 'sleep', edit: e })
+        }}
+      />
+      <VitaminsSheet
+        open={vitaminsOpen}
+        onClose={() => setVitaminsOpen(false)}
+        child={child}
+        events={events}
+        now={now}
+        tz={tz}
+        onOpenEntry={(e) => {
+          setVitaminsOpen(false)
+          setSheet({ type: 'medicine', edit: e })
         }}
       />
       <SweetSpotSheet open={spotOpen} onClose={() => setSpotOpen(false)} spot={spot} child={child} now={now} tz={tz} />

@@ -82,10 +82,11 @@ export function SleepSheet({
   const next = spot.next
   const hint = (() => {
     if (running) {
-      if (spot.status === 'napping' && spot.wakeAround) return `${name} may wake around ${fmtTime(spot.wakeAround, tz)}, going by usual nap lengths.`
-      if (spot.status === 'night' && spot.wakeAround) return `${name} is usually up for the day around ${fmtTime(spot.wakeAround, tz)}.`
+      if (spot.status === 'napping' && spot.wakeAround) return `${name} will likely wake around ${fmtTime(spot.wakeAround, tz)}, going by ${name}’s naps at this time of day.`
+      if (spot.status === 'night' && spot.wakeAround) return `${name} will likely be up for the day around ${fmtTime(spot.wakeAround, tz)}.`
       return null
     }
+    if (spot.status === 'ok' && next?.resettle) return `A night waking: back to sleep when ready. ${name} is usually up for the day around ${fmtTime(next.center + (next.lengthMin ?? 0) * 60_000, tz)}.`
     if (spot.status === 'ok' && next) {
       const what = next.kind === 'bedtime' ? 'bedtime' : `nap ${next.napNumber}`
       const ph = phase(next, now)

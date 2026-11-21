@@ -104,7 +104,7 @@ const NAP = /\bnap/
 const ACTIVITIES: [RegExp, string | null, string?][] = [
   [/\btummy ?time\b/, 'tummy'],
   [/\b(bath(?:ed|time)?|sponge(?:d)?(?: bath)?|shower(?:ed)?)\b/, 'bath'],
-  [/\b(massage(?:d)?|maalish|malish)\b/, null, 'Massage'],
+  [/\b(massage(?:d)?|maalish|malish)\b/, 'massage'],
   [/\b(walk|stroll|park|outside|outdoors?|garden|sun ?bath\w*|sunlight|balcony)\b/, 'outdoor'],
   [/\b(play(?:ed|ing|time)?|play ?gym|toys?)\b/, 'indoor'],
   [/\b(read(?:ing)?|story|stories|books?)\b/, 'story'],

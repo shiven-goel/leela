@@ -61,6 +61,8 @@ export interface EventData {
   vaccine?: string
   /** Vaccine doses this entry covers (ids from vaccines.ts). */
   vax?: string[]
+  /** Medicine: one of the baby's daily vitamins or supplements, given from the Vitamins list. */
+  supplement?: boolean
   /** Medicine: hours until the next dose, when the family asked for a reminder. */
   every_h?: number | null
   // activities & milestones

@@ -1,5 +1,5 @@
 // Wording for Sweet spot, shared by Today, the Sleep screen and the Sweet spot screen.
-import type { SleepWindow, SweetSpot } from './sweetspot'
+import type { FeedForecast, SleepWindow, SweetSpot } from './sweetspot'
 import { durationText, fmtTime } from './time'
 
 /** "2:05 – 2:35 PM", or "11:45 AM – 12:15 PM" across noon. */
@@ -32,6 +32,22 @@ export const minutesText = (m: number) => durationText(Math.round(m) * 60_000)
 /** One line describing what Sweet spot is based on. */
 export function basisText(spot: SweetSpot, name: string): string {
   if (spot.basis === 'custom') return 'Using your own wake windows'
-  if (spot.basis === 'logs') return `Based on ${name}’s last ${Math.min(7, spot.pattern.days)} days and age`
-  return `Based on what’s typical at ${spot.guide.label}`
+  if (spot.basis === 'logs') {
+    const days = Math.min(14, spot.pattern.days)
+    return `Learned from ${name}’s last ${days} ${days === 1 ? 'day' : 'days'}, recent days counting most`
+  }
+  return `Based on what’s typical at ${spot.guide.label} until more is logged`
 }
+
+/** The next feed in words: "Feed when she wakes, ~10:40 AM" or "Next feed ~4:10 PM". */
+export function feedText(feed: FeedForecast, now: number, tz: string): { main: string; detail: string } {
+  const every = `${feed.basis === 'logs' ? 'lately' : 'typically'} every ${minutesText(feed.everyMin)} when awake`
+  if (feed.when === 'on-waking') return { main: `Feed on waking, ~${fmtTime(feed.at, tz)}`, detail: 'No feeds during long sleeps lately' }
+  if (feed.at <= now) return { main: 'Next feed due now', detail: every }
+  if (feed.when === 'before-sleep') return { main: `Feed before sleep, ~${fmtTime(feed.at, tz)}`, detail: 'A feed usually comes just before the long sleep' }
+  const range = feed.range && feed.range[1] - feed.range[0] >= 20 * 60_000 ? `, likely ${fmtRange(feed.range[0], feed.range[1], tz)}` : ''
+  return { main: `Next feed ~${fmtTime(feed.at, tz)}`, detail: `${every}${range}` }
+}
+
+/** "Rough guess" when the times at this hour vary a lot for this baby. */
+export const confidenceText = (w?: SleepWindow) => (w?.confidence === 'low' ? 'rough guess: times vary at this hour' : w?.confidence === 'medium' ? 'fairly sure' : '')

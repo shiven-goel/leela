@@ -62,6 +62,7 @@ export const MORE_GROUPS: { title: string; types: EventType[] }[] = [
 export const ACTIVITY_KINDS = [
   { id: 'tummy', label: 'Tummy time' },
   { id: 'bath', label: 'Bath' },
+  { id: 'massage', label: 'Massage' },
   { id: 'outdoor', label: 'Outdoor play' },
   { id: 'indoor', label: 'Indoor play' },
   { id: 'story', label: 'Story time' },

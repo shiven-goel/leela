@@ -5,7 +5,7 @@ import { saveChildSettings } from '../lib/actions'
 import { disableReminders, enableReminders, localReminder, pushSupport, savedReminder, sendTestReminder, setReminderLead } from '../lib/push'
 import { SUPPORT_TEXT, myAlerts, saveAlerts } from './AlertSettings'
 import { phase, readSettings, type SleepWindow, type SweetSpot, type SweetSpotSettings } from '../lib/sweetspot'
-import { basisText, fmtRange, minutesText, rangeText, sleepName, spanText } from '../lib/sweetspotText'
+import { basisText, confidenceText, feedText, fmtRange, minutesText, rangeText, sleepName, spanText } from '../lib/sweetspotText'
 import { durationText, fmtTime } from '../lib/time'
 import { useLeela } from '../lib/store'
 import type { Child } from '../lib/types'
@@ -73,13 +73,18 @@ export function SweetSpotCard({
   let eyebrow = 'Sweet spot'
   let big: React.ReactNode = null
   let line: React.ReactNode = null
-  if (spot.status === 'ok' && next) {
+  const sure = confidenceText(next)
+  if (spot.status === 'ok' && next?.resettle) {
+    eyebrow = 'Sweet spot · Night waking'
+    big = 'Back to sleep when ready'
+    line = `Usually up for the day around ${fmtTime(next.center + (next.lengthMin ?? 0) * 60_000, tz)}`
+  } else if (spot.status === 'ok' && next) {
     const what = next.kind === 'bedtime' ? 'bedtime' : 'nap'
     eyebrow = next.kind === 'bedtime' ? 'Sweet spot · Bedtime' : `Sweet spot · Next nap`
     if (ph === 'soon') {
       big = fmtRange(next.start, next.end, tz)
       const wait = next.start - now
-      line = `in ${spanText(wait)}${wait <= 30 * 60_000 ? ', start winding down' : ''}`
+      line = `in ${spanText(wait)}${wait <= 30 * 60_000 ? ', start winding down' : ''}${sure && sure !== 'fairly sure' ? ` · ${sure}` : ''}`
     } else if (ph === 'now') {
       big = `Good time for ${what === 'bedtime' ? 'bed' : 'a nap'}`
       line = `Sweet spot until ${fmtTime(next.end, tz)}`
@@ -90,13 +95,14 @@ export function SweetSpotCard({
   } else if (spot.status === 'napping') {
     eyebrow = 'Sweet spot · Napping'
     big = spot.wakeAround ? `Likely up around ${fmtTime(spot.wakeAround, tz)}` : 'Napping'
-    line = spot.napExpectMin ? `This nap usually lasts about ${minutesText(spot.napExpectMin)}` : null
+    line = spot.wakeRange ? `Most likely ${fmtRange(spot.wakeRange[0], spot.wakeRange[1], tz)}` : spot.napExpectMin ? `This nap usually lasts about ${minutesText(spot.napExpectMin)}` : null
   } else if (spot.status === 'night') {
-    eyebrow = spot.asleepSince ? 'Sweet spot · Night' : 'Sweet spot · Night waking'
-    big = spot.asleepSince ? `Usually up around ${spot.wakeAround ? fmtTime(spot.wakeAround, tz) : 'morning'}` : 'Back to sleep when ready'
-    line = spot.asleepSince
-      ? `Asleep since ${fmtTime(spot.asleepSince, tz)}. Naps are predicted after the morning wake-up.`
-      : `Usually up for the day around ${spot.wakeAround ? fmtTime(spot.wakeAround, tz) : 'morning'}`
+    eyebrow = 'Sweet spot · Night'
+    big = spot.wakeAround ? `Likely up around ${fmtTime(spot.wakeAround, tz)}` : 'Asleep for the night'
+    line = [spot.wakeRange ? `most likely ${fmtRange(spot.wakeRange[0], spot.wakeRange[1], tz)}` : '', spot.asleepSince ? `asleep since ${fmtTime(spot.asleepSince, tz)}` : '']
+      .filter(Boolean)
+      .join(' · ')
+    line = line ? line[0].toUpperCase() + line.slice(1) : null
   } else if (spot.status === 'newborn') {
     eyebrow = 'Sweet spot · Newborn guide'
     big = next ? `Sleepy again by ${fmtRange(next.start, next.end, tz)}` : 'Newborns sleep in short stretches'
@@ -138,7 +144,7 @@ export function SweetSpotCard({
                     <span key={i}>
                       {i > 0 && ' · '}
                       <span className="whitespace-nowrap">
-                        {i === 0 && (spot.status === 'napping' ? 'After that, ' : 'Then ')}
+                        {i === 0 && (spot.status === 'napping' || spot.status === 'night' ? 'After waking, ' : 'Then ')}
                         {w.kind === 'bedtime' ? 'bed' : w.short ? 'short nap' : `nap ${w.napNumber}`} ~{fmtTime(w.center, tz)}
                       </span>
                     </span>
@@ -149,10 +155,7 @@ export function SweetSpotCard({
             {spot.feed && (
               <p className="flex items-center gap-2">
                 <BottleIcon size={18} className={filled ? 'text-white/80' : 'text-[var(--feed)]'} />
-                <span className="min-w-0">
-                  {spot.feed.at <= now ? 'Next feed due now' : `Next feed ~${fmtTime(spot.feed.at, tz)}`}
-                  <span className={filled ? 'text-white/80' : 'text-ink-2'}> · every ~{minutesText(spot.feed.everyMin)}</span>
-                </span>
+                <span className="min-w-0">{feedText(spot.feed, now, tz).main}</span>
               </p>
             )}
           </div>
@@ -237,19 +240,21 @@ export function SweetSpotSheet({ open, onClose, spot, child, now, tz }: { open: 
       {/* ------------------------------------------------ today */}
       <h3 className="mb-2 text-[15px] font-semibold text-ink-2">Rest of today</h3>
       <ul className="mb-2 divide-y divide-line overflow-hidden rounded-2xl bg-card-2 ring-1 ring-line">
-        {spot.status === 'napping' && spot.wakeAround && (
-          <PlanRow icon={<SunHorizon size={20} weight="fill" />} title="Likely awake" time={`~${fmtTime(spot.wakeAround, tz)}`} />
-        )}
-        {spot.status === 'night' && spot.wakeAround && (
-          <PlanRow icon={<SunHorizon size={20} weight="fill" />} title="Up for the day" time={`~${fmtTime(spot.wakeAround, tz)}`} />
+        {(spot.status === 'napping' || spot.status === 'night') && spot.wakeAround && (
+          <PlanRow
+            icon={<SunHorizon size={20} weight="fill" />}
+            title={spot.status === 'night' ? 'Up for the day' : 'Likely awake'}
+            time={`~${fmtTime(spot.wakeAround, tz)}`}
+            detail={spot.wakeRange ? `most likely ${fmtRange(spot.wakeRange[0], spot.wakeRange[1], tz)}` : undefined}
+          />
         )}
         {plan.map((w, i) => (
           <PlanRow
             key={i}
             icon={w.kind === 'bedtime' ? <Bed size={20} weight="fill" /> : <MoonStars size={20} weight="fill" />}
-            title={w.short ? `${sleepName(w)}, a short one` : sleepName(w)}
-            time={i === 0 && spot.status === 'ok' ? fmtRange(w.start, w.end, tz) : `~${fmtTime(w.center, tz)}`}
-            detail={w.lengthMin ? `about ${minutesText(w.lengthMin)}` : undefined}
+            title={w.resettle ? 'Back to sleep' : w.short ? `${sleepName(w)}, a short one` : sleepName(w)}
+            time={i === 0 && spot.status === 'ok' && !w.resettle ? fmtRange(w.start, w.end, tz) : `~${fmtTime(w.center, tz)}`}
+            detail={[w.lengthMin ? `about ${minutesText(w.lengthMin)}` : '', i === 0 ? confidenceText(w) : ''].filter(Boolean).join(' · ') || undefined}
             highlight={i === 0 && spot.status === 'ok' && phase(w, now) === 'now'}
           />
         ))}
@@ -257,9 +262,9 @@ export function SweetSpotSheet({ open, onClose, spot, child, now, tz }: { open: 
           <PlanRow
             icon={<BottleIcon size={20} />}
             tone="feed"
-            title="Next feed"
-            time={spot.feed.at <= now ? 'due now' : `~${fmtTime(spot.feed.at, tz)}`}
-            detail={`${spot.feed.basis === 'logs' ? 'lately' : 'typically'} every ${minutesText(spot.feed.everyMin)}`}
+            title={spot.feed.when === 'on-waking' ? 'Feed on waking' : spot.feed.when === 'before-sleep' ? 'Feed before sleep' : 'Next feed'}
+            time={spot.feed.at <= now && spot.feed.when !== 'on-waking' ? 'due now' : `~${fmtTime(spot.feed.at, tz)}`}
+            detail={feedText(spot.feed, now, tz).detail}
           />
         )}
         {!plan.length && !spot.feed && spot.status !== 'napping' && spot.status !== 'night' && (
@@ -278,10 +283,10 @@ export function SweetSpotSheet({ open, onClose, spot, child, now, tz }: { open: 
       <h3 className="mb-2 text-[15px] font-semibold text-ink-2">How it works</h3>
       <div className="mb-6 space-y-2 text-[15px] leading-relaxed">
         <p>
-          At {g.label}, most babies are ready to sleep again {rangeText(g.wake[0], g.wake[1])} after waking, with {g.naps[0] === g.naps[1] ? napsWord(g.naps[0]) : `${g.naps[0]}–${g.naps[1]} naps`} a day. The window before bed is usually the longest.
+          LAPdiary learns {name}’s own rhythm from every sleep and feed logged: how long {name} stays awake at each time of day, how long naps and nights last, when the night usually starts and ends, and when feeds come. Recent days count the most, so when you move bedtime, the forecast follows within a few days.
         </p>
         <p>
-          Once about five days of sleep are logged, LAPdiary leans towards {name}’s own rhythm, staying within the normal range for that age. Everyone in the family sees the same prediction.
+          Until about five days are logged it starts from what’s typical at {g.label}: awake {rangeText(g.wake[0], g.wake[1])} at a time, {g.naps[0] === g.naps[1] ? napsWord(g.naps[0]) : `${g.naps[0]}–${g.naps[1]} naps`} a day. Everyone in the family sees the same forecast.
         </p>
         <p>
           It’s a guide, like a weather forecast. Watch for sleepy cues too: yawning, rubbing eyes, staring away. Start winding down about 30 minutes before the window.
@@ -299,14 +304,26 @@ export function SweetSpotSheet({ open, onClose, spot, child, now, tz }: { open: 
             {p.last !== undefined && <Fact label="Up before bed" value={minutesText(p.last)} />}
             {p.napMin !== undefined && <Fact label="Naps last" value={`about ${minutesText(p.napMin)}`} />}
             {p.naps !== undefined && <Fact label="Naps a day" value={String(p.naps)} />}
-            {p.bedtimeMin !== undefined && <Fact label="Bedtime" value={clockOf(p.bedtimeMin)} />}
+            {p.bedtimeMin !== undefined && <Fact label="Night starts" value={clockOf(p.bedtimeMin)} />}
             {p.wakeMin !== undefined && <Fact label="Up for the day" value={clockOf(p.wakeMin)} />}
+            {p.nightMin !== undefined && <Fact label="Night sleep" value={minutesText(p.nightMin)} />}
             {p.daySleepMin !== undefined && <Fact label="Daytime sleep" value={minutesText(p.daySleepMin)} />}
           </dl>
-          {spot.basis === 'logs' && [p.first, p.middle, p.last].some((m) => m !== undefined && (m < g.wake[0] * 0.85 || m > g.wake[1] * 1.15)) && (
-            <p className="-mt-3 mb-6 rounded-2xl bg-[var(--feed-soft)] px-4 py-3 text-[14px] leading-snug">
-              Some of {name}’s wake windows are outside the usual {rangeText(g.wake[0], g.wake[1])} for {g.label}, so LAPdiary keeps its predictions within that range. To follow {name}’s own times, set a bedtime or your own wake windows below.
-            </p>
+          {spot.accuracy && (
+            <>
+              <h3 className="mb-2 text-[15px] font-semibold text-ink-2">How well it’s doing</h3>
+              <p className="mb-6 rounded-2xl bg-card-2 px-4 py-3 text-[15px] leading-relaxed ring-1 ring-line">
+                Over the last two weeks, LAPdiary predicted each of {name}’s {spot.accuracy.checked} sleeps again from only what was known before it.{' '}
+                <strong className="font-semibold">{spot.accuracy.within30}</strong> started within half an hour of the predicted time, and the typical miss was{' '}
+                <strong className="font-semibold">{minutesText(spot.accuracy.missMin)}</strong>
+                {spot.accuracy.wakeMissMin !== undefined && (
+                  <>
+                    ; wake-ups were off by about <strong className="font-semibold">{minutesText(spot.accuracy.wakeMissMin)}</strong>
+                  </>
+                )}
+                . It gets sharper the more steadily sleeps are logged.
+              </p>
+            </>
           )}
         </>
       )}
@@ -314,22 +331,6 @@ export function SweetSpotSheet({ open, onClose, spot, child, now, tz }: { open: 
       {/* ------------------------------------------------ settings */}
       <h3 className="mb-1 text-[15px] font-semibold text-ink-2">Adjust for {name}</h3>
       <p className="mb-4 text-[14px] text-ink-3">Changes here are shared with everyone in the family.</p>
-      <Field label="Naps a day">
-        <Choices
-          options={[
-            { id: 'auto', label: 'Auto' },
-            { id: '1', label: '1' },
-            { id: '2', label: '2' },
-            { id: '3', label: '3' },
-            { id: '4', label: '4' },
-            { id: '5', label: '5' },
-          ]}
-          value={draft.naps === undefined ? 'auto' : String(draft.naps)}
-          onChange={(v) => change({ naps: !v || v === 'auto' ? undefined : Number(v) })}
-          tone="sleep"
-          columns={6}
-        />
-      </Field>
       <Field label="Bedtime">
         <div className="flex items-center gap-2">
           <Choices

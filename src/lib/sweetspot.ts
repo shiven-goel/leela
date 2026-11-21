@@ -1,13 +1,25 @@
-// Sweet spot: when the baby is likely ready to sleep next, how the rest of the day may go, when
-// they'll likely wake, and when the next feed is likely.
+// Sweet spot: when the baby is likely ready to sleep next, how long each sleep will last, how the
+// next day or so may go, and when the next feed is really due.
 //
-// Like Huckleberry's SweetSpot, it starts from wake windows that are typical for the baby's age
-// and leans towards the baby's own pattern once about five days of sleep are logged, staying
-// inside the normal range for that age. It's a pure function of the synced data, so every phone in
-// the family shows the same answer.
+// How it learns (no fixed "7 am to 7 pm" day):
+// - Every gap between two logged sleeps is an example: when the baby woke (time of day), how long
+//   the sleep before it was, and how long they then stayed awake. To predict, examples are weighed
+//   by how close they are in time of day, how similar the sleep before was (a short nap means a
+//   shorter time awake) and how recent they are (yesterday counts far more than last week, so a
+//   change in routine is followed within two or three days). The weighted spread of those examples
+//   gives the window: the middle half of what the baby actually did.
+// - Sleep lengths are learned the same way from when a sleep starts: a 2 am sleep may last nine
+//   hours, a 6 pm one forty minutes. While asleep, only examples that lasted at least as long as
+//   this sleep so far count, so the wake-up estimate sharpens as the sleep goes on.
+// - The baby's own night is found from their long sleeps, so a late-night baby isn't forced into
+//   someone else's schedule. A bedtime set by the family pulls the night towards it.
+// - Feeds know about sleep: if the baby rarely feeds during this kind of sleep, the next feed is
+//   expected when they wake, not in the middle of it.
+// - It checks itself: each new sleep in the last two weeks is predicted again from what was
+//   known just before it, and how often the window was right is shown to the family.
+// With little logged, everything leans on what's typical for the baby's age. Pure, with no
+// libraries: the same file runs on phones and, bundled, on the server (reminders, Ghar).
 
-import { sleepKind } from './counting'
-import { addDaysTz, atLocalTime, minuteOfDay } from './time'
 import type { Child, Family, LeelaEvent } from './types'
 
 const MIN = 60_000
@@ -28,28 +40,30 @@ export interface AgeGuide {
   napMin: number
   /** Hours of daytime sleep. */
   daySleep: [number, number]
+  /** Typical longest stretch of night sleep, in hours. */
+  nightHours: number
 }
 
-// Adapted from published guidance (Huckleberry's wake-window and nap charts).
+// Adapted from published guidance (wake-window and nap charts used by baby sleep apps).
 export const AGE_GUIDE: AgeGuide[] = [
-  { until: 28, label: 'newborns', wake: [30, 60], naps: [4, 6], defaultNaps: 5, napMin: 50, daySleep: [5, 8] },
-  { until: 56, label: '1 month', wake: [45, 90], naps: [4, 6], defaultNaps: 5, napMin: 60, daySleep: [5, 7] },
-  { until: 91, label: '2 months', wake: [60, 105], naps: [4, 5], defaultNaps: 4, napMin: 70, daySleep: [5, 6] },
-  { until: 122, label: '3 months', wake: [60, 120], naps: [4, 5], defaultNaps: 4, napMin: 60, daySleep: [4, 5] },
-  { until: 183, label: '4–5 months', wake: [90, 150], naps: [3, 4], defaultNaps: 3, napMin: 60, daySleep: [3, 4.5] },
-  { until: 213, label: '6 months', wake: [120, 180], naps: [3, 3], defaultNaps: 3, napMin: 60, daySleep: [2.5, 3.5] },
-  { until: 274, label: '7–8 months', wake: [150, 210], naps: [2, 3], defaultNaps: 3, napMin: 70, daySleep: [2, 3.5] },
-  { until: 304, label: '9 months', wake: [150, 210], naps: [2, 2], defaultNaps: 2, napMin: 75, daySleep: [2, 3] },
-  { until: 396, label: '10–12 months', wake: [180, 240], naps: [2, 2], defaultNaps: 2, napMin: 75, daySleep: [2, 3] },
-  { until: 457, label: '13–14 months', wake: [180, 270], naps: [1, 2], defaultNaps: 2, napMin: 90, daySleep: [2, 3] },
-  { until: 579, label: '15–18 months', wake: [240, 330], naps: [1, 2], defaultNaps: 1, napMin: 120, daySleep: [2, 3] },
-  { until: 730, label: '19–24 months', wake: [300, 360], naps: [1, 1], defaultNaps: 1, napMin: 120, daySleep: [1.5, 2.5] },
-  { until: 1096, label: '2 years', wake: [315, 390], naps: [1, 1], defaultNaps: 1, napMin: 100, daySleep: [1, 2] },
-  { until: 1461, label: '3 years', wake: [360, 420], naps: [0, 1], defaultNaps: 1, napMin: 75, daySleep: [0, 1.5] },
-  { until: Infinity, label: '4 years and up', wake: [360, 480], naps: [0, 1], defaultNaps: 0, napMin: 60, daySleep: [0, 1] },
+  { until: 28, label: 'newborns', wake: [30, 60], naps: [4, 6], defaultNaps: 5, napMin: 50, daySleep: [5, 8], nightHours: 3 },
+  { until: 56, label: '1 month', wake: [45, 90], naps: [4, 6], defaultNaps: 5, napMin: 60, daySleep: [5, 7], nightHours: 4 },
+  { until: 91, label: '2 months', wake: [60, 105], naps: [4, 5], defaultNaps: 4, napMin: 70, daySleep: [5, 6], nightHours: 5 },
+  { until: 122, label: '3 months', wake: [60, 120], naps: [4, 5], defaultNaps: 4, napMin: 60, daySleep: [4, 5], nightHours: 6 },
+  { until: 183, label: '4–5 months', wake: [90, 150], naps: [3, 4], defaultNaps: 3, napMin: 60, daySleep: [3, 4.5], nightHours: 7 },
+  { until: 213, label: '6 months', wake: [120, 180], naps: [3, 3], defaultNaps: 3, napMin: 60, daySleep: [2.5, 3.5], nightHours: 8 },
+  { until: 274, label: '7–8 months', wake: [150, 210], naps: [2, 3], defaultNaps: 3, napMin: 70, daySleep: [2, 3.5], nightHours: 9 },
+  { until: 304, label: '9 months', wake: [150, 210], naps: [2, 2], defaultNaps: 2, napMin: 75, daySleep: [2, 3], nightHours: 10 },
+  { until: 396, label: '10–12 months', wake: [180, 240], naps: [2, 2], defaultNaps: 2, napMin: 75, daySleep: [2, 3], nightHours: 10 },
+  { until: 457, label: '13–14 months', wake: [180, 270], naps: [1, 2], defaultNaps: 2, napMin: 90, daySleep: [2, 3], nightHours: 10 },
+  { until: 579, label: '15–18 months', wake: [240, 330], naps: [1, 2], defaultNaps: 1, napMin: 120, daySleep: [2, 3], nightHours: 10 },
+  { until: 730, label: '19–24 months', wake: [300, 360], naps: [1, 1], defaultNaps: 1, napMin: 120, daySleep: [1.5, 2.5], nightHours: 10 },
+  { until: 1096, label: '2 years', wake: [315, 390], naps: [1, 1], defaultNaps: 1, napMin: 100, daySleep: [1, 2], nightHours: 10 },
+  { until: 1461, label: '3 years', wake: [360, 420], naps: [0, 1], defaultNaps: 1, napMin: 75, daySleep: [0, 1.5], nightHours: 10 },
+  { until: Infinity, label: '4 years and up', wake: [360, 480], naps: [0, 1], defaultNaps: 0, napMin: 60, daySleep: [0, 1], nightHours: 10 },
 ]
 
-/** Below this age (8 weeks) sleep is too irregular to forecast; Leela shows the newborn guide. */
+/** Below this age (8 weeks) sleep is too irregular to forecast; the newborn guide is shown. */
 export const NEWBORN_DAYS = 56
 
 export function ageInDays(child: Pick<Child, 'birth_date' | 'due_date'>, now: number): number | null {
@@ -72,11 +86,11 @@ export function guideFor(days: number): AgeGuide {
 // ---------------------------------------------------------------------------- settings
 /** Shared by the family, saved on the baby (children.settings.sweetspot). */
 export interface SweetSpotSettings {
-  /** Naps a day; unset means worked out from the logs. */
+  /** Naps a day (older setting, no longer used for predictions). */
   naps?: number
-  /** Target bedtime, "HH:MM"; unset means worked out from the logs. */
+  /** Target bedtime, "HH:MM": the night is planned towards it. */
   bedtime?: string
-  /** Minutes added to every wake window (negative for shorter). */
+  /** Minutes added to every time awake (negative for shorter). */
   adjust?: number
   /** The family's own wake windows, in minutes. */
   custom?: { first: number; middle: number; last: number }
@@ -102,17 +116,22 @@ export function readSettings(settings: Record<string, unknown> | null | undefine
 
 // ---------------------------------------------------------------------------- results
 export interface SleepWindow {
+  /** 'bedtime' is the start of the baby's night (whenever that is for them). */
   kind: 'nap' | 'bedtime'
   /** The window, rounded to 5 minutes. */
   start: number
   end: number
   center: number
-  /** Which nap of the day this is, from 1. */
+  /** Which nap since the night, from 1. */
   napNumber?: number
-  /** Expected length of the nap, in minutes. */
+  /** Expected length of the sleep, in minutes. */
   lengthMin?: number
   /** A short nap to bridge the gap to bedtime. */
   short?: boolean
+  /** Awake in the night: this is going back to sleep. */
+  resettle?: boolean
+  /** How sure: 'low' when this baby's times at this hour vary a lot (or little is logged). */
+  confidence?: 'high' | 'medium' | 'low'
 }
 
 export interface FeedForecast {
@@ -120,32 +139,53 @@ export interface FeedForecast {
   at: number
   /** Start of the last feed. */
   last: number
-  /** Typical gap between feeds, in minutes. */
+  /** Typical gap between feeds at this time of day, in minutes. */
   everyMin: number
   basis: 'logs' | 'age'
+  /** Why it's then: the usual gap, as soon as the baby wakes, or just before a long sleep. */
+  when?: 'gap' | 'on-waking' | 'before-sleep'
+  /** Likely range. */
+  range?: [number, number]
 }
 
 export interface Pattern {
-  /** Days in the last week with enough sleep logged to learn from. */
+  /** Days in the last two weeks with sleep logged. */
   days: number
-  /** How much the baby's own pattern counts, 0 to 0.85. */
+  /** How much the baby's own pattern counts, 0 to 1. */
   weight: number
-  /** The baby's own typical wake windows, in minutes. */
+  /** The baby's own typical wake windows lately, in minutes: after the night, between naps, before the night. */
   first?: number
   middle?: number
   last?: number
   napMin?: number
   naps?: number
-  /** Minutes after midnight, can pass 1440 for bedtimes after midnight. */
+  /** Minutes after midnight (0–1439) when the baby's night usually starts and ends lately. */
   bedtimeMin?: number
   wakeMin?: number
+  /** Typical night length lately, in minutes. */
+  nightMin?: number
   daySleepMin?: number
+  /** Sleeps learned from. */
+  sleeps: number
+}
+
+export interface Accuracy {
+  /** Sleeps in the last two weeks predicted again from what was known just before. */
+  checked: number
+  /** How many started inside the window. */
+  inWindow: number
+  /** How many started within half an hour of the middle of the window. */
+  within30: number
+  /** Typical miss, in minutes. */
+  missMin: number
+  /** Typical miss of the wake-up time, in minutes (from 15 minutes into each sleep). */
+  wakeMissMin?: number
 }
 
 export type SweetSpotStatus =
   | 'ok' // awake: `next` is the next sleep
   | 'napping' // asleep for a nap: `wakeAround`, then `later`
-  | 'night' // asleep for the night, or awake in the night: `wakeAround` is the morning wake-up
+  | 'night' // asleep for the night: `wakeAround` is when the night likely ends
   | 'newborn' // under 8 weeks: `next` comes from the newborn wake window
   | 'needs-sleep' // nothing recent to predict from
   | 'needs-birthday'
@@ -155,15 +195,17 @@ export interface SweetSpot {
   next?: SleepWindow
   later: SleepWindow[]
   wakeAround?: number
+  /** Likely range of the wake-up while asleep. */
+  wakeRange?: [number, number]
   awakeSince?: number
   asleepSince?: number
-  /** While napping: how long this nap is expected to last, in minutes. */
+  /** While asleep: how long this sleep is expected to last, in minutes. */
   napExpectMin?: number
-  /** Naps so far today, and the daytime sleep they add up to. */
+  /** Naps since the night, and the sleep they add up to. */
   napsToday: number
   daySleepMs: number
   napsPlanned: number
-  /** Wake windows in use today, minutes: before the first nap, between naps, before bed. */
+  /** Typical wake windows lately, minutes: after the night, between naps, before the night. */
   windows: { first: number; middle: number; last: number }
   bedtimeTarget?: number
   ageDays: number | null
@@ -172,6 +214,7 @@ export interface SweetSpot {
   basis: 'age' | 'logs' | 'custom'
   settings: SweetSpotSettings
   feed?: FeedForecast
+  accuracy?: Accuracy
 }
 
 export function phase(w: Pick<SleepWindow, 'start' | 'end'>, now: number): 'soon' | 'now' | 'late' {
@@ -180,81 +223,123 @@ export function phase(w: Pick<SleepWindow, 'start' | 'end'>, now: number): 'soon
   return 'late'
 }
 
-// ---------------------------------------------------------------------------- helpers
+// ---------------------------------------------------------------------------- time of day
 const toMin = (hhmm: string) => {
   const [h, m] = hhmm.split(':').map(Number)
   return (h || 0) * 60 + (m || 0)
 }
 const clamp = (n: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, n))
 const round5 = (t: number) => Math.round(t / (5 * MIN)) * 5 * MIN
-/** The local date, "2026-11-01", without pulling in date formatting (this file also runs on the server). */
-const dayFormats = new Map<string, Intl.DateTimeFormat>()
-function dayKey(t: number, tz: string): string {
-  let f = dayFormats.get(tz)
-  if (!f) dayFormats.set(tz, (f = new Intl.DateTimeFormat('en-CA', { year: 'numeric', month: '2-digit', day: '2-digit', timeZone: tz })))
-  return f.format(t)
+const mod1440 = (m: number) => ((m % 1440) + 1440) % 1440
+/** Signed difference a − b on the clock face, in −720…720 minutes. */
+const circ = (a: number, b: number) => {
+  const d = mod1440(a - b)
+  return d > 720 ? d - 1440 : d
 }
 
-function inWindow(m: number, startMin: number, endMin: number) {
-  return startMin > endMin ? m >= startMin || m < endMin : m >= startMin && m < endMin
+const formats = new Map<string, Intl.DateTimeFormat>()
+function offsetMin(t: number, tz: string): number {
+  let f = formats.get(tz)
+  if (!f) {
+    try {
+      f = new Intl.DateTimeFormat('en-US', { timeZone: tz, hourCycle: 'h23', year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: 'numeric' })
+    } catch {
+      f = new Intl.DateTimeFormat('en-US', { timeZone: 'UTC', hourCycle: 'h23', year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: 'numeric' })
+    }
+    formats.set(tz, f)
+  }
+  const p: Record<string, number> = {}
+  for (const x of f.formatToParts(t)) if (x.type !== 'literal') p[x.type] = Number(x.value)
+  const asUtc = Date.UTC(p.year, p.month - 1, p.day, p.hour % 24, p.minute)
+  return Math.round((asUtc - Math.floor(t / MIN) * MIN) / MIN)
+}
+/** Minutes after local midnight. */
+function tod(t: number, tz: string): number {
+  return mod1440(Math.floor(t / MIN) + offsetMin(t, tz))
+}
+/** The next moment at or after `t` when the local clock shows `minute`. */
+function nextAt(t: number, minute: number, tz: string): number {
+  const ahead = mod1440(minute - tod(t, tz))
+  return Math.floor(t / MIN) * MIN + ahead * MIN
 }
 
-interface Weighted {
+// ---------------------------------------------------------------------------- weighted statistics
+interface W {
   v: number
   w: number
 }
-/** Median that lets recent days count more. */
-function weightedMedian(xs: Weighted[]): number | undefined {
-  if (!xs.length) return undefined
-  const s = [...xs].sort((a, b) => a.v - b.v)
+function quantile(xs: W[], q: number): number | undefined {
+  const s = xs.filter((x) => x.w > 0).sort((a, b) => a.v - b.v)
+  if (!s.length) return undefined
   const total = s.reduce((n, x) => n + x.w, 0)
   let acc = 0
-  for (const x of s) {
-    acc += x.w
-    if (acc >= total / 2) return x.v
+  for (let i = 0; i < s.length; i++) {
+    const next = acc + s[i].w
+    if (next >= total * q) {
+      // Interpolate within this example's share for a smoother answer.
+      if (i === 0) return s[0].v
+      const f = (total * q - acc) / s[i].w
+      return s[i - 1].v + (s[i].v - s[i - 1].v) * clamp(f, 0, 1)
+    }
+    acc = next
   }
   return s[s.length - 1].v
 }
-const recency = (at: number, now: number) => Math.pow(0.5, Math.max(0, now - at) / (4 * DAY))
-
-/** A local time on the local day of `ref`; minutes can pass 1440 for the next day. */
-function atMinute(ref: number, minute: number, tz: string): number {
-  const days = Math.floor(minute / 1440)
-  const m = ((Math.round(minute) % 1440) + 1440) % 1440
-  const hhmm = `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`
-  const base = days ? addDaysTz(ref, days, tz).getTime() : ref
-  return atLocalTime(base, hhmm, tz).getTime()
+/** How many examples the weights are worth. */
+const effective = (xs: W[]) => {
+  const a = xs.reduce((n, x) => n + x.w, 0)
+  const b = xs.reduce((n, x) => n + x.w * x.w, 0)
+  return b > 0 ? (a * a) / b : 0
+}
+const gauss = (d: number, sigma: number) => Math.exp(-0.5 * (d / sigma) ** 2)
+const halfLife = (age: number, half: number) => Math.pow(0.5, Math.max(0, age) / half)
+/** Median of clock times that may straddle midnight. */
+function clockMedian(xs: W[]): number | undefined {
+  if (!xs.length) return undefined
+  // Centre on the weighted circular mean, then take the median of the offsets.
+  let sx = 0
+  let sy = 0
+  for (const x of xs) {
+    const a = (x.v / 1440) * 2 * Math.PI
+    sx += Math.cos(a) * x.w
+    sy += Math.sin(a) * x.w
+  }
+  const mean = mod1440((Math.atan2(sy, sx) / (2 * Math.PI)) * 1440)
+  const m = quantile(
+    xs.map((x) => ({ v: circ(x.v, mean), w: x.w })),
+    0.5,
+  )
+  return m === undefined ? undefined : mod1440(mean + m)
 }
 
-// ---------------------------------------------------------------------------- the baby's days
+// ---------------------------------------------------------------------------- the baby's sleeps
 interface Sleep {
   start: number
   end: number | null
+}
+interface Gap {
+  /** When the baby woke. */
+  at: number
+  tod: number
+  /** Length of the sleep before, minutes. */
+  prev: number
+  /** Minutes awake. */
+  v: number
+  afterNight: boolean
+  beforeNight: boolean
+}
+interface Stretch {
+  at: number
+  tod: number
+  /** Minutes asleep. */
+  v: number
   night: boolean
 }
 
-interface Day {
-  /** Morning wake-up: the end of the night before, when logged. */
-  wake: number | null
-  naps: Sleep[]
-  /** Start of the night's sleep, when logged. */
-  bedtime: number | null
-}
+const LOOKBACK = 28 * DAY
 
-function isNight(e: LeelaEvent, fam: Fam, now: number): boolean {
-  if (e.data.kind === 'night') return true
-  if (e.data.kind === 'nap') return false
-  if (sleepKind(e, fam) === 'night') return true
-  const start = Date.parse(e.started_at)
-  const end = e.ended_at ? Date.parse(e.ended_at) : e.timer_state ? now : start
-  if (end - start >= 5 * H) return true
-  // A bedtime a little before the family's night hours still starts the night.
-  const before = toMin(fam.night_start) - minuteOfDay(start, fam.timezone)
-  return before > 0 && before <= 120 && end - start >= 3 * H
-}
-
-function sleepsOf(events: LeelaEvent[], childId: string, fam: Fam, now: number): Sleep[] {
-  const since = now - 15 * DAY
+function sleepsOf(events: LeelaEvent[], childId: string, now: number): Sleep[] {
+  const since = now - LOOKBACK
   const list: Sleep[] = []
   for (const e of events) {
     if (e.deleted_at || e.type !== 'sleep' || e.child_id !== childId) continue
@@ -262,341 +347,490 @@ function sleepsOf(events: LeelaEvent[], childId: string, fam: Fam, now: number):
     if (start < since || start > now) continue
     const end = e.ended_at ? Date.parse(e.ended_at) : e.timer_state ? null : start
     if (end !== null && end <= start) continue
-    list.push({ start, end: end === null ? null : Math.min(end, now), night: isNight(e, fam, now) })
+    list.push({ start, end: end === null ? null : Math.min(end, now) })
   }
   list.sort((a, b) => a.start - b.start)
-  // A sleep that resumes within a few minutes is one sleep.
+  // A sleep that resumes within 20 minutes (a quick resettle) is one sleep.
   const merged: Sleep[] = []
   for (const s of list) {
     const prev = merged[merged.length - 1]
-    if (prev && prev.end !== null && s.start - prev.end < 15 * MIN) {
-      prev.end = s.end === null ? null : Math.max(prev.end, s.end)
-      prev.night = prev.night || s.night
-    } else if (prev && (prev.end === null || s.start < prev.end)) {
-      // Overlapping entries: keep the longer reach.
+    if (prev && (prev.end === null || s.start - prev.end < 20 * MIN)) {
       if (prev.end !== null) prev.end = s.end === null ? null : Math.max(prev.end, s.end)
-      prev.night = prev.night || s.night
     } else merged.push({ ...s })
   }
   return merged
 }
 
-function buildDays(sleeps: Sleep[], fam: Fam): { days: Day[]; current: Day | null } {
-  const ns = toMin(fam.night_start)
-  const ne = toMin(fam.night_end)
-  const night = (t: number) => inWindow(minuteOfDay(t, fam.timezone), ns, ne)
-  const days: Day[] = []
-  let cur: Day | null = null
-  let lastEnd: number | null = null
-  for (const s of sleeps) {
-    if (s.night) {
-      const sameNight =
-        cur !== null &&
-        cur.naps.length === 0 &&
-        cur.wake !== null &&
-        (s.start - cur.wake < 4 * H || (night(cur.wake) && night(s.start) && s.start - cur.wake < 8 * H))
-      if (sameNight && cur) cur.wake = s.end
-      else {
-        if (cur) {
-          cur.bedtime = s.start
-          days.push(cur)
-        }
-        cur = { wake: s.end, naps: [], bedtime: null }
-      }
-    } else {
-      if (!cur || (lastEnd !== null && s.start - lastEnd > 14 * H)) {
-        // A nap with no night logged before it starts a day whose wake-up isn't known.
-        if (cur) days.push(cur)
-        cur = { wake: null, naps: [], bedtime: null }
-      }
-      cur.naps.push(s)
-    }
-    lastEnd = s.end
-  }
-  return { days, current: cur }
+interface Night {
+  /** Usual start and end on the clock, minutes after midnight. */
+  onset: number
+  wake: number
+  /** Typical length, minutes. */
+  length: number
+  /** From the baby's own long sleeps (true) or the family's night hours (false). */
+  learned: boolean
 }
 
-// ---------------------------------------------------------------------------- learning the pattern
-interface Learned {
-  pattern: Pattern
-  ratios: { first?: number; middle?: number; last?: number; all?: number }
-  /** Minutes at the same place in days with the same number of naps, keyed "position/naps". */
-  exact: Map<string, Weighted[]>
-  napLen: { byIndex: (number | undefined)[]; all?: number }
-}
-
-/** Typical wake window at position i of a day with n naps (position n is the one before bed). */
-function ageWindow(i: number, n: number, wake: [number, number]): number {
-  const [lo, hi] = wake
-  if (n <= 0) return hi
-  return lo + (hi - lo) * (0.15 + (0.85 * Math.min(i, n)) / n)
-}
-
-function learn(all: Day[], now: number, fam: Fam, guide: AgeGuide, napsRef: number): Learned {
+/** The baby's own night lately: when their long sleeps start and end, recent nights counting most. */
+function findNight(sleeps: Sleep[], cutoff: number, fam: Fam, guide: AgeGuide, bedtime?: string): Night {
   const tz = fam.timezone
-  const since = now - 10 * DAY
-  const week = now - 7 * DAY
-  const groups: Record<'first' | 'middle' | 'last', Weighted[]> = { first: [], middle: [], last: [] }
-  const allRatios: Weighted[] = []
-  const lengths: Weighted[][] = []
-  const allLengths: Weighted[] = []
-  const naps: Weighted[] = []
-  const bedtimes: Weighted[] = []
-  const wakes: Weighted[] = []
-  const daySleep: Weighted[] = []
-  const learnedDays = new Set<string>()
-  const [lo, hi] = guide.wake
-  const ageMid = napsRef >= 2 ? Array.from({ length: napsRef - 1 }, (_, k) => ageWindow(k + 1, napsRef, guide.wake)).reduce((a, b) => a + b, 0) / (napsRef - 1) : (lo + hi) / 2
-  const ageOf = { first: ageWindow(0, Math.max(1, napsRef), guide.wake), middle: ageMid, last: hi }
-
-  const exact = new Map<string, Weighted[]>()
-  const add = (g: 'first' | 'middle' | 'last', minutes: number, at: number, key: string | null) => {
-    if (at < since || minutes < 10 || minutes > 8 * 60 || minutes > hi * 2.2) return
-    const w = recency(at, now)
-    const r = minutes / ageOf[g]
-    groups[g].push({ v: r, w })
-    allRatios.push({ v: r, w })
-    if (key) exact.set(key, [...(exact.get(key) ?? []), { v: minutes, w }])
-    if (at >= week) learnedDays.add(dayKey(at, tz))
+  const longMin = Math.min(240, guide.nightHours * 60 * 0.6)
+  const onsets: W[] = []
+  const wakes: W[] = []
+  const lengths: W[] = []
+  for (const s of sleeps) {
+    if (s.end === null || s.end > cutoff || s.start < cutoff - 12 * DAY) continue
+    const len = (s.end - s.start) / MIN
+    if (len < longMin) continue
+    const w = halfLife((cutoff - s.end) / DAY, 2)
+    onsets.push({ v: tod(s.start, tz), w })
+    wakes.push({ v: tod(s.end, tz), w })
+    lengths.push({ v: len, w })
   }
+  const learned = onsets.length >= 2
+  let onset = learned ? clockMedian(onsets)! : toMin(fam.night_start)
+  const wake = learned ? clockMedian(wakes)! : toMin(fam.night_end)
+  const length = learned ? quantile(lengths, 0.5)! : mod1440(wake - onset) || guide.nightHours * 60
+  if (bedtime) onset = toMin(bedtime)
+  return { onset, wake, length, learned }
+}
 
-  for (const d of all) {
-    const n = d.naps.length
-    const done = d.naps.filter((s) => s.end !== null)
-    // Only a fully logged day says which window of the day each gap was.
-    const whole = d.wake !== null && d.bedtime !== null
-    const key = (pos: number) => (whole ? `${pos}/${n}` : null)
-    if (d.wake !== null && n >= 1) add('first', (d.naps[0].start - d.wake) / MIN, d.naps[0].start, key(0))
-    for (let k = 1; k < n; k++) {
-      const prevEnd = d.naps[k - 1].end
-      if (prevEnd !== null) add('middle', (d.naps[k].start - prevEnd) / MIN, d.naps[k].start, key(k))
-    }
-    const lastEnd = n ? d.naps[n - 1].end : null
-    if (d.bedtime !== null && n >= 1 && lastEnd !== null) add('last', (d.bedtime - lastEnd) / MIN, d.bedtime, key(n))
-    done.forEach((s, k) => {
-      if (s.start < since) return
-      const len = (s.end! - s.start) / MIN
-      if (len < 10 || len > 5 * 60) return
-      const w = recency(s.start, now)
-      ;(lengths[k] ??= []).push({ v: len, w })
-      allLengths.push({ v: len, w })
-    })
-    if (d.wake !== null && d.wake >= since) {
-      let m = minuteOfDay(d.wake, tz)
-      if (m > 15 * 60) m -= 1440
-      wakes.push({ v: m, w: recency(d.wake, now) })
-    }
-    if (d.bedtime !== null && d.bedtime >= since) {
-      let m = minuteOfDay(d.bedtime, tz)
-      if (m < 12 * 60) m += 1440
-      bedtimes.push({ v: m, w: recency(d.bedtime, now) })
-      if (d.wake !== null && d.bedtime >= week) {
-        naps.push({ v: n, w: recency(d.bedtime, now) })
-        daySleep.push({ v: done.reduce((t, s) => t + (s.end! - s.start), 0) / MIN, w: recency(d.bedtime, now) })
-      }
-    }
-  }
+/** Whether a sleep starting at `start` and lasting `len` minutes is the baby's night. */
+function isNightSleep(start: number, len: number, night: Night, tz: string, guide: AgeGuide): boolean {
+  if (len >= Math.max(240, guide.nightHours * 60 * 0.6)) return true
+  return Math.abs(circ(tod(start, tz), night.onset)) <= 120 && len >= 150
+}
 
-  const days = learnedDays.size
-  const weight = days < 3 ? 0 : Math.min(0.85, 0.15 * days)
-  const ratio = (g: Weighted[]) => (g.length >= 2 ? weightedMedian(g) : undefined)
-  const med = (xs: Weighted[], minN = 3) => (xs.length >= minN ? weightedMedian(xs) : undefined)
-  const napsMed = med(naps)
-  const r = { first: ratio(groups.first), middle: ratio(groups.middle), last: ratio(groups.last), all: allRatios.length >= 3 ? weightedMedian(allRatios) : undefined }
-  return {
-    pattern: {
-      days,
-      weight,
-      first: groups.first.length >= 2 ? Math.round(r.first! * ageOf.first) : undefined,
-      middle: groups.middle.length >= 2 ? Math.round(r.middle! * ageOf.middle) : undefined,
-      last: groups.last.length >= 2 ? Math.round(r.last! * ageOf.last) : undefined,
-      napMin: med(allLengths) !== undefined ? Math.round(med(allLengths)!) : undefined,
-      naps: napsMed === undefined ? undefined : Math.round(napsMed),
-      bedtimeMin: med(bedtimes),
-      wakeMin: med(wakes),
-      daySleepMin: med(daySleep) !== undefined ? Math.round(med(daySleep)!) : undefined,
-    },
-    ratios: r,
-    exact,
-    napLen: { byIndex: lengths.map((xs) => (xs && xs.length >= 3 ? weightedMedian(xs) : undefined)), all: med(allLengths) },
+function history(sleeps: Sleep[], night: Night, tz: string, guide: AgeGuide): { gaps: Gap[]; stretches: Stretch[] } {
+  const gaps: Gap[] = []
+  const stretches: Stretch[] = []
+  const nightOf = sleeps.map((s) => (s.end === null ? false : isNightSleep(s.start, (s.end - s.start) / MIN, night, tz, guide)))
+  for (let k = 0; k < sleeps.length; k++) {
+    const s = sleeps[k]
+    if (s.end === null) continue
+    const len = (s.end - s.start) / MIN
+    if (len >= 8) stretches.push({ at: s.start, tod: tod(s.start, tz), v: len, night: nightOf[k] })
+    const n = sleeps[k + 1]
+    if (!n) continue
+    const v = (n.start - s.end) / MIN
+    // Much longer awake than the age allows almost always means a sleep wasn't logged.
+    if (v < 8 || v > Math.max(8 * 60, guide.wake[1] * 2)) continue
+    gaps.push({ at: s.end, tod: tod(s.end, tz), prev: len, v, afterNight: nightOf[k], beforeNight: n.end === null ? false : nightOf[k + 1] })
   }
+  return { gaps, stretches }
+}
+
+// ---------------------------------------------------------------------------- the two models
+interface Dist {
+  lo: number
+  mid: number
+  hi: number
+  /** How many examples it's worth. */
+  n: number
+}
+
+// Tuned on a real baby's six weeks of logs (each sleep predicted from only what came before it).
+const TOD_SIGMA = 70 // minutes: examples an hour away in the day still count well
+const RECENT_HALF = 7 // days: last week counts twice as much as the week before
+/** How much an example's clock time counts as well as its length (babies drift to the same times). */
+const CLOCK_PULL = 0.5
+/** How far a predicted bedtime moves towards when recent nights began. */
+const BEDTIME_PULL = 0.3
+
+/**
+ * Minutes awake before the next sleep, for a wake-up at `woke` after a sleep of `prev` minutes,
+ * given `elapsed` minutes already awake. Learned from gaps before `cutoff`.
+ */
+function awakeModel(gaps: Gap[], woke: number, prev: number, elapsed: number, cutoff: number, tz: string, guide: AgeGuide): Dist {
+  const t = tod(woke, tz)
+  const xs: W[] = []
+  for (const g of gaps) {
+    if (g.at + g.v * MIN > cutoff) continue
+    if (g.v <= elapsed) continue
+    const w = gauss(circ(g.tod, t), TOD_SIGMA) * gauss(Math.log(Math.max(5, g.prev) / Math.max(5, prev)), 1.2) * halfLife((cutoff - g.at) / DAY, RECENT_HALF)
+    // Half by how long they stayed awake, half by the clock time they fell asleep.
+    if (w > 0.002) xs.push({ v: Math.max(elapsed + 1, g.v + CLOCK_PULL * circ(g.tod, t)), w })
+  }
+  const n = effective(xs)
+  // What's typical for the age, as a fallback and a gentle pull while examples are few.
+  const [alo, ahi] = guide.wake
+  const prior = { lo: Math.max(alo, elapsed + 5), mid: Math.max((alo + ahi) / 2, elapsed + 15), hi: Math.max(ahi, elapsed + 30) }
+  if (n < 0.5) return { ...prior, n }
+  const k = 0.5
+  const mix = (d: number, p: number) => (n * d + k * p) / (n + k)
+  return { lo: mix(quantile(xs, 0.25)!, prior.lo), mid: mix(quantile(xs, 0.5)!, prior.mid), hi: mix(quantile(xs, 0.75)!, prior.hi), n }
+}
+
+/** Minutes a sleep starting at `start` will last, given `elapsed` minutes asleep so far. */
+function sleepModel(stretches: Stretch[], start: number, elapsed: number, cutoff: number, tz: string, guide: AgeGuide, night: Night): Dist {
+  const t = tod(start, tz)
+  const xs: W[] = []
+  for (const s of stretches) {
+    if (s.at + s.v * MIN > cutoff) continue
+    if (s.v <= elapsed) continue
+    const w = gauss(circ(s.tod, t), 60) * halfLife((cutoff - s.at) / DAY, 2.5)
+    if (w > 0.002) xs.push({ v: s.v, w })
+  }
+  const n = effective(xs)
+  const nightish = Math.abs(circ(t, night.onset)) <= 90
+  const base = nightish ? night.length : guide.napMin
+  const prior = { lo: Math.max(base * 0.7, elapsed + 5), mid: Math.max(base, elapsed + 15), hi: Math.max(base * 1.3, elapsed + 30) }
+  if (n < 0.5) return { ...prior, n }
+  const k = 1
+  const mix = (d: number, p: number) => (n * d + k * p) / (n + k)
+  return { lo: mix(quantile(xs, 0.25)!, prior.lo), mid: mix(quantile(xs, 0.5)!, prior.mid), hi: mix(quantile(xs, 0.75)!, prior.hi), n }
+}
+
+/**
+ * How long this night will last (given `elapsed` minutes asleep so far): mostly from the clock time
+ * the baby usually wakes, partly from how long recent nights lasted. Babies tend to wake at much the
+ * same time even when bedtime moves, so a night that starts earlier is a longer one.
+ */
+function nightModel(stretches: Stretch[], start: number, elapsed: number, cutoff: number, night: Night, tz: string): Dist {
+  const byLength = nightLengths(stretches, elapsed, cutoff, night)
+  if (!night.learned) return byLength
+  const toWake = (nextAt(start + 3 * H, night.wake, tz) - start) / MIN
+  if (toWake <= elapsed) return byLength
+  const blend = (v: number) => 0.3 * v + 0.7 * toWake
+  return { lo: Math.max(elapsed + 5, blend(byLength.lo) - 20), mid: Math.max(elapsed + 10, blend(byLength.mid)), hi: Math.max(elapsed + 20, blend(byLength.hi) + 20), n: byLength.n }
+}
+
+function nightLengths(stretches: Stretch[], elapsed: number, cutoff: number, night: Night): Dist {
+  const xs: W[] = []
+  for (const s of stretches) {
+    if (!s.night || s.at + s.v * MIN > cutoff || s.v <= elapsed) continue
+    xs.push({ v: s.v, w: halfLife((cutoff - s.at) / DAY, 2) })
+  }
+  const n = effective(xs)
+  const prior = { lo: Math.max(night.length * 0.8, elapsed + 10), mid: Math.max(night.length, elapsed + 30), hi: Math.max(night.length * 1.15, elapsed + 60) }
+  if (n < 0.5) return { ...prior, n }
+  const mix = (d: number, p: number) => (n * d + 0.5 * p) / (n + 0.5)
+  return { lo: mix(quantile(xs, 0.25)!, prior.lo), mid: mix(quantile(xs, 0.5)!, prior.mid), hi: mix(quantile(xs, 0.75)!, prior.hi), n }
 }
 
 // ---------------------------------------------------------------------------- the forecast
+interface Ctx {
+  tz: string
+  guide: AgeGuide
+  night: Night
+  gaps: Gap[]
+  stretches: Stretch[]
+  settings: SweetSpotSettings
+  cutoff: number
+  /** When the last night ended, if known. */
+  lastNightEnd: number | null
+}
+
+/**
+ * Whether a sleep starting at `start` is the night beginning: as long after the last night ended
+ * as the baby's days usually run. This follows a bedtime that's moving, which the time of day
+ * alone can't.
+ */
+function nightDue(c: Ctx, start: number): boolean {
+  if (c.lastNightEnd === null) return false
+  const dayMin = c.night.learned ? mod1440(c.night.onset - c.night.wake) || 14 * 60 : 24 * 60 - c.guide.nightHours * 60 - 60
+  // A bedtime moved earlier makes the day shorter, so there's room for a couple of hours' change,
+  // as long as it's still within three hours of the usual bedtime.
+  if (Math.abs(circ(tod(start, c.tz), c.night.onset)) > 180) return false
+  return (start - c.lastNightEnd) / MIN >= Math.max(8 * 60, dayMin - 150)
+}
+
+/** The window for the next sleep after waking at `woke` (from a sleep of `prev` minutes). */
+function nextWindow(c: Ctx, woke: number, prev: number, elapsed: number, afterNight: boolean): { start: number; end: number; center: number; n: number; spread: number } {
+  const adj = c.settings.adjust ?? 0
+  if (c.settings.custom) {
+    const m = (afterNight ? c.settings.custom.first : c.settings.custom.middle) + adj
+    const half = clamp(m * 0.1, 10, 20)
+    return { start: woke + (m - half) * MIN, end: woke + (m + half) * MIN, center: woke + m * MIN, n: 99, spread: 2 * half }
+  }
+  const d = awakeModel(c.gaps, woke, prev, elapsed, c.cutoff, c.tz, c.guide)
+  // A window narrow enough to plan with, wide enough to be honest.
+  let lo = d.lo + adj
+  let hi = d.hi + adj
+  const mid = d.mid + adj
+  const spread = hi - lo
+  if (hi - lo < 20) {
+    lo = mid - 10
+    hi = mid + 10
+  }
+  if (hi - lo > 90) {
+    lo = Math.max(lo, mid - 45)
+    hi = Math.min(hi, mid + 45)
+  }
+  return { start: woke + lo * MIN, end: woke + hi * MIN, center: woke + mid * MIN, n: d.n, spread }
+}
+
+/**
+ * The coming sleeps from a wake-up at `woke`, until the night begins (inclusive), using the most
+ * likely value at each step.
+ */
+function plan(c: Ctx, woke: number, prev: number, elapsed: number, afterNight: boolean, napsDone: number, resettle: boolean): SleepWindow[] {
+  const items: SleepWindow[] = []
+  let t = woke
+  let p = prev
+  let after = afterNight
+  let napNo = napsDone
+  const target = c.settings.bedtime ? toMin(c.settings.bedtime) : null
+  for (let step = 0; step < 8 && t < woke + 30 * H; step++) {
+    const w = nextWindow(c, t, p, step === 0 ? elapsed : 0, after)
+    let len = sleepModel(c.stretches, w.center, 0, c.cutoff, c.tz, c.guide, c.night).mid
+    let night = isNightSleep(w.center, len, c.night, c.tz, c.guide)
+    if (step === 0 && resettle) {
+      // Back to sleep in the night: it lasts until the usual morning wake-up.
+      night = true
+      len = Math.max(30, (nextAt(w.center + 30 * MIN, c.night.wake, c.tz) - w.center) / MIN)
+    } else {
+      if (!night && !resettle && nightDue(c, w.center)) night = true
+      if (night) len = Math.max(len, nightModel(c.stretches, w.center, 0, c.cutoff, c.night, c.tz).mid)
+    }
+    let { start, end, center } = w
+    if (night && !resettle && target === null && c.night.learned) {
+      // Bedtime leans on when recent nights began, which follows a moved bedtime within a couple of
+      // days, where the time-awake examples take a week or more.
+      const onsetAt = nextAt(center - 12 * H, c.night.onset, c.tz)
+      const shift = onsetAt - center
+      if (Math.abs(shift) <= 4 * H) {
+        const move = Math.max(BEDTIME_PULL * shift, t + 20 * MIN - center)
+        center += move
+        start += move
+        end += move
+      }
+    }
+    if (target !== null && !resettle) {
+      // A bedtime set by the family: the night starts then, and no nap runs too close to it.
+      const bed = nextAt(t, target, c.tz)
+      const lastWin = c.settings.custom?.last ?? (c.guide.wake[0] + c.guide.wake[1]) / 2
+      const napEnd = center + len * MIN
+      if (!night && (center >= bed - 45 * MIN || napEnd + lastWin * 0.6 * MIN > bed)) {
+        if (bed - t <= lastWin * 1.6 * MIN || center >= bed - 45 * MIN) {
+          center = Math.max(bed, t + 20 * MIN)
+          start = center - 15 * MIN
+          end = center + 15 * MIN
+          night = true
+          len = sleepModel(c.stretches, center, 0, c.cutoff, c.tz, c.guide, c.night).mid
+          len = Math.max(len, c.night.length * 0.8)
+        } else {
+          // A short nap bridges the long stretch to bedtime.
+          len = Math.min(len, 35)
+        }
+      }
+    }
+    const item: SleepWindow = {
+      kind: night ? 'bedtime' : 'nap',
+      start: round5(start),
+      end: round5(end),
+      center: round5(center),
+      lengthMin: Math.round(len),
+    }
+    if (!night) item.napNumber = ++napNo
+    if (!night && len <= 35 && target !== null) item.short = true
+    if (step === 0 && resettle) item.resettle = true
+    if (step === 0) item.confidence = w.n < 2 ? 'low' : w.spread > 120 ? 'low' : w.spread > 70 ? 'medium' : 'high'
+    items.push(item)
+    if (night) break
+    t = center + len * MIN
+    p = len
+    after = false
+  }
+  return items
+}
+
+/** How well the model has done lately: every sleep of the last two weeks, predicted again from what was known just before. */
+function selfCheck(c: Ctx, now: number): Accuracy | undefined {
+  let checked = 0
+  let inWindow = 0
+  let within30 = 0
+  const misses: number[] = []
+  for (const g of c.gaps) {
+    if (g.at < now - 14 * DAY) continue
+    const onset = g.at + g.v * MIN
+    if (onset > now) continue
+    const cc = { ...c, cutoff: g.at + 5 * MIN }
+    const w = nextWindow(cc, g.at, g.prev, 0, g.afterNight)
+    checked++
+    if (onset >= round5(w.start) && onset <= round5(w.end)) inWindow++
+    const miss = Math.abs(onset - w.center) / MIN
+    if (miss <= 30) within30++
+    misses.push(miss)
+  }
+  if (checked < 5) return undefined
+  const wakeMisses: number[] = []
+  for (const s of c.stretches) {
+    if (s.at < now - 14 * DAY || s.v < 25) continue
+    const end = s.at + s.v * MIN
+    if (end > now) continue
+    const d = sleepModel(c.stretches, s.at, 15, s.at + 15 * MIN, c.tz, c.guide, c.night)
+    wakeMisses.push(Math.abs(s.v - d.mid))
+  }
+  const med = (xs: number[]) => [...xs].sort((a, b) => a - b)[Math.floor(xs.length / 2)]
+  return {
+    checked,
+    inWindow,
+    within30,
+    missMin: Math.round(med(misses)),
+    wakeMissMin: wakeMisses.length >= 5 ? Math.round(med(wakeMisses)) : undefined,
+  }
+}
+
+function patternOf(c: Ctx, sleeps: Sleep[], now: number): Pattern {
+  const week = now - 7 * DAY
+  const days = new Set<number>()
+  for (const s of sleeps) if (s.start >= now - 14 * DAY) days.add(Math.floor((s.start + offsetMin(s.start, c.tz) * MIN) / DAY))
+  const rec = (at: number) => halfLife((now - at) / DAY, RECENT_HALF)
+  const pick = (f: (g: Gap) => boolean) => c.gaps.filter((g) => g.at >= week && f(g)).map((g) => ({ v: g.v, w: rec(g.at) }))
+  const first = pick((g) => g.afterNight)
+  const last = pick((g) => g.beforeNight && !g.afterNight)
+  const middle = pick((g) => !g.afterNight && !g.beforeNight)
+  const naps = c.stretches.filter((s) => s.at >= week && !s.night)
+  const nights = c.stretches.filter((s) => s.at >= week && s.night).length
+  const napsPerDay = nights ? naps.length / Math.max(1, nights) : undefined
+  const q = (xs: W[], min = 2) => (xs.length >= min ? Math.round(quantile(xs, 0.5)!) : undefined)
+  const nm = q(naps.map((s) => ({ v: s.v, w: rec(s.at) })), 3)
+  return {
+    days: days.size,
+    weight: clamp(days.size / 7, 0, 1),
+    first: q(first),
+    middle: q(middle, 3),
+    last: q(last),
+    napMin: nm,
+    naps: napsPerDay !== undefined ? Math.round(napsPerDay) : undefined,
+    bedtimeMin: c.night.learned ? Math.round(c.night.onset) : undefined,
+    wakeMin: c.night.learned ? Math.round(c.night.wake) : undefined,
+    nightMin: c.night.learned ? Math.round(c.night.length) : undefined,
+    daySleepMin: napsPerDay !== undefined && nm !== undefined ? Math.round(naps.reduce((t, s) => t + s.v, 0) / Math.max(1, nights)) : undefined,
+    sleeps: c.stretches.length,
+  }
+}
+
 export function sweetSpot(events: LeelaEvent[], child: Child, fam: Fam, now: number): SweetSpot {
   const tz = fam.timezone
   const settings = readSettings(child.settings)
   const ageDays = ageInDays(child, now)
-  const ageGuide = guideFor(Math.max(0, ageDays ?? 400))
-  const sleeps = sleepsOf(events, child.id, fam, now)
-  const { days, current } = buildDays(sleeps, fam)
-  const all = current ? [...days, current] : days
-
-  // A baby moving between nap counts uses the wake windows that go with the naps they take.
-  const firstPass = learn(all, now, fam, ageGuide, ageGuide.defaultNaps)
-  let guide = ageGuide
-  const idx = AGE_GUIDE.indexOf(ageGuide)
-  const pn = firstPass.pattern.naps
-  if (pn !== undefined && firstPass.pattern.days >= 3 && ageDays !== null && ageDays >= NEWBORN_DAYS) {
-    if (pn > ageGuide.naps[1] && idx > 2) guide = { ...ageGuide, wake: AGE_GUIDE[idx - 1].wake, napMin: AGE_GUIDE[idx - 1].napMin }
-    else if (pn < ageGuide.naps[0] && idx < AGE_GUIDE.length - 1) guide = { ...ageGuide, wake: AGE_GUIDE[idx + 1].wake, napMin: AGE_GUIDE[idx + 1].napMin }
-  }
-  const napsPlanned = settings.naps ?? pn ?? guide.defaultNaps
-  const learned = learn(all, now, fam, guide, Math.max(1, napsPlanned))
-  const { pattern, ratios } = learned
-  const w = pattern.weight
-  const [lo, hi] = guide.wake
-
-  const basis: SweetSpot['basis'] = settings.custom ? 'custom' : w > 0 ? 'logs' : 'age'
-  const adjust = settings.adjust ?? 0
-  const lean = (r: number | undefined) => 1 + w * ((r ?? ratios.all ?? 1) - 1)
-  /** Wake window before sleep number i (0 = first nap) when the day has n naps; n = bedtime. */
-  const windowAt = (i: number, n: number): number => {
-    let m: number
-    if (settings.custom) m = i === 0 && n > 0 ? settings.custom.first : i >= n ? settings.custom.last : settings.custom.middle
-    else {
-      const age = ageWindow(i, n, guide.wake)
-      const same = learned.exact.get(`${Math.min(i, n)}/${n}`)
-      const g = i === 0 && n > 0 ? ratios.first : i >= n ? ratios.last : ratios.middle
-      // The baby's own gap at this point of the day when there's enough of it, otherwise the
-      // shape of the day for their age, scaled to how the baby runs.
-      m = same && same.length >= 3 ? age + w * (weightedMedian(same)! - age) : age * lean(g)
-      m = clamp(m, lo * 0.85, hi * 1.15)
-    }
-    return Math.max(15, m + adjust)
-  }
-  const napLen = (i: number): number => {
-    const own = learned.napLen.byIndex[i] ?? learned.napLen.all
-    return clamp(Math.round(own ?? guide.napMin), 20, 180)
-  }
-
-  const nightStartMin = toMin(fam.night_start)
-  const nightEndMin = toMin(fam.night_end)
-  const wakeMin = pattern.wakeMin ?? nightEndMin
-  const bedMin = settings.bedtime ? toMin(settings.bedtime) + (toMin(settings.bedtime) < 12 * 60 ? 1440 : 0) : pattern.bedtimeMin ?? nightStartMin + (nightStartMin < 12 * 60 ? 1440 : 0)
+  const guide = guideFor(Math.max(0, ageDays ?? 400))
+  const sleeps = sleepsOf(events, child.id, now)
+  const night = findNight(sleeps, now, fam, guide, settings.bedtime)
+  const { gaps, stretches } = history(sleeps, night, tz, guide)
+  const c: Ctx = { tz, guide, night, gaps, stretches, settings, cutoff: now, lastNightEnd: null }
 
   const running = sleeps.length && sleeps[sleeps.length - 1].end === null ? sleeps[sleeps.length - 1] : undefined
-  const lastDone = [...sleeps].reverse().find((s) => s.end !== null)
-  const todayNaps = current?.naps ?? []
-  const daySleepMs = todayNaps.reduce((t, s) => t + ((s.end ?? now) - s.start), 0)
+  const done = sleeps.filter((s) => s.end !== null)
+  const lastDone = done[done.length - 1]
+  // Naps since the last night.
+  let lastNightIdx = -1
+  for (let k = done.length - 1; k >= 0; k--) {
+    if (isNightSleep(done[k].start, (done[k].end! - done[k].start) / MIN, night, tz, guide)) {
+      lastNightIdx = k
+      break
+    }
+  }
+  const napsSince = lastNightIdx >= 0 ? done.slice(lastNightIdx + 1) : done.filter((s) => s.start > now - 14 * H)
+  c.lastNightEnd = lastNightIdx >= 0 ? done[lastNightIdx].end : null
+  const daySleepMs = napsSince.reduce((t, s) => t + (s.end! - s.start), 0) + (running && !isNightSleep(running.start, (now - running.start) / MIN, night, tz, guide) ? now - running.start : 0)
+
+  const pattern = patternOf(c, sleeps, now)
+  const own = pattern.days >= 3 && stretches.length >= 8
+  const basis: SweetSpot['basis'] = settings.custom ? 'custom' : own ? 'logs' : 'age'
+  const avgWake = Math.round((guide.wake[0] + guide.wake[1]) / 2)
+  const windows = settings.custom
+    ? { ...settings.custom }
+    : { first: pattern.first ?? guide.wake[0], middle: pattern.middle ?? avgWake, last: pattern.last ?? guide.wake[1] }
 
   const base: SweetSpot = {
     status: 'needs-sleep',
     later: [],
-    napsToday: todayNaps.filter((s) => s.end !== null).length,
+    napsToday: napsSince.length,
     daySleepMs,
-    napsPlanned,
-    windows: { first: Math.round(windowAt(0, Math.max(1, napsPlanned))), middle: Math.round(windowAt(1, Math.max(2, napsPlanned))), last: Math.round(windowAt(napsPlanned, napsPlanned)) },
+    napsPlanned: pattern.naps ?? guide.defaultNaps,
+    windows,
     ageDays,
     guide,
     pattern,
     basis,
     settings,
-    feed: feedForecast(events, child, fam, now, ageDays),
+    accuracy: own ? selfCheck(c, now) : undefined,
   }
   if (ageDays === null) return { ...base, status: 'needs-birthday' }
 
-  /** The morning wake-up after `t`, at the baby's usual time. */
-  const nextMorning = (t: number) => {
-    let at = atMinute(t, wakeMin, tz)
-    if (at <= t + 30 * MIN) at = atMinute(addDaysTz(t, 1, tz).getTime(), wakeMin, tz)
-    return at
-  }
-
   // Newborns: sleep comes round again a short wake window after waking.
   if (ageDays < NEWBORN_DAYS) {
-    if (running) return { ...base, status: 'newborn', asleepSince: running.start }
-    if (!lastDone || now - lastDone.end! > 12 * H) return base
+    const feed = feedForecast(events, child, fam, now, ageDays)
+    if (running) return { ...base, feed, status: 'newborn', asleepSince: running.start }
+    if (!lastDone || now - lastDone.end! > 12 * H) return { ...base, feed }
     const start = round5(lastDone.end! + guide.wake[0] * MIN)
     const end = round5(lastDone.end! + guide.wake[1] * MIN)
-    return { ...base, status: 'newborn', awakeSince: lastDone.end!, next: { kind: 'nap', start, end, center: (start + end) / 2 } }
-  }
-
-  const bedtimeOn = (dayRef: number) => atMinute(dayRef, bedMin, tz)
-
-  /** The rest of the day from a wake-up at `from`, with `done` naps already taken. */
-  const plan = (from: number, done: number, shortLast: boolean): SleepWindow[] => {
-    const n = napsPlanned
-    // The bedtime that belongs to this day: today's, or the coming one if it's already evening.
-    let target = bedtimeOn(from)
-    if (target - from > 20 * H) target = bedtimeOn(addDaysTz(from, -1, tz).getTime())
-    if (target < from - 6 * H) target = bedtimeOn(addDaysTz(from, 1, tz).getTime())
-    const latest = target + 30 * MIN
-    const lastW = windowAt(n, n)
-    const items: SleepWindow[] = []
-    let t = from
-    let i = done
-    while (items.length < 6 && i < n) {
-      let W = windowAt(i, n)
-      if (i === done && shortLast) W *= 0.85
-      const c = t + W * MIN
-      const L = napLen(i)
-      const half = clamp(Math.round(W * 0.1), 10, 20) * MIN
-      if (c + (L + lastW * 0.75) * MIN <= latest) {
-        items.push({ kind: 'nap', start: round5(c - half), end: round5(c + half), center: round5(c), napNumber: i + 1, lengthMin: L })
-        t = c + L * MIN
-        i++
-        continue
-      }
-      // Not enough day left for a full nap: a short one bridges a long stretch to bedtime.
-      const catnap = Math.min(L, 35)
-      if (target - t > lastW * 1.3 * MIN && c + (catnap + lastW * 0.6) * MIN <= latest) {
-        items.push({ kind: 'nap', start: round5(c - half), end: round5(c + half), center: round5(c), napNumber: i + 1, lengthMin: catnap, short: true })
-        t = c + catnap * MIN
-        i++
-      }
-      break
-    }
-    // Children who no longer nap go to bed at their usual time.
-    const bed = n === 0 ? target : clamp(t + lastW * MIN, target - 90 * MIN, target + 45 * MIN)
-    items.push({ kind: 'bedtime', start: round5(bed - 15 * MIN), end: round5(bed + 15 * MIN), center: round5(bed) })
-    return items
+    return { ...base, feed, status: 'newborn', awakeSince: lastDone.end!, next: { kind: 'nap', start, end, center: (start + end) / 2 } }
   }
 
   if (running) {
-    // Asleep within an hour or so of bedtime, after the day's naps: that's the night starting.
-    let bedRef = bedtimeOn(running.start)
-    if (bedRef - running.start > 16 * H) bedRef = bedtimeOn(addDaysTz(running.start, -1, tz).getTime())
-    const napsBefore = todayNaps.filter((s) => s.end !== null).length
-    if (!running.night && running.start >= bedRef - 75 * MIN && napsBefore >= Math.min(1, napsPlanned)) running.night = true
-    if (running.night) return { ...base, status: 'night', asleepSince: running.start, wakeAround: nextMorning(Math.max(now, running.start + 4 * H)), bedtimeTarget: undefined }
-    const i = Math.max(0, todayNaps.length - 1)
-    const expected = running.start + napLen(i) * MIN
-    const wakeAround = round5(Math.max(expected, now + 5 * MIN))
-    return { ...base, status: 'napping', asleepSince: running.start, wakeAround, napExpectMin: napLen(i), later: plan(wakeAround, i + 1, false) }
+    const elapsed = (now - running.start) / MIN
+    const whole = sleepModel(stretches, running.start, 0, now, tz, guide, night)
+    const isNight =
+      elapsed >= 240 ||
+      (elapsed >= 150 && Math.abs(circ(tod(running.start, tz), night.onset)) <= 240) ||
+      isNightSleep(running.start, whole.mid, night, tz, guide) ||
+      nightDue(c, running.start)
+    const d = isNight ? nightModel(stretches, running.start, elapsed, now, night, tz) : sleepModel(stretches, running.start, elapsed, now, tz, guide, night)
+    const wakeAround = round5(Math.max(running.start + d.mid * MIN, now + 5 * MIN))
+    const wakeRange: [number, number] = [round5(Math.max(running.start + d.lo * MIN, now)), round5(Math.max(running.start + d.hi * MIN, now + 10 * MIN))]
+    const later = plan(c, wakeAround, Math.max(elapsed, d.mid), 0, isNight, isNight ? 0 : napsSince.length, false)
+    const spot: SweetSpot = {
+      ...base,
+      status: isNight ? 'night' : 'napping',
+      asleepSince: running.start,
+      wakeAround,
+      wakeRange,
+      napExpectMin: Math.round(d.mid),
+      later: isNight ? later.slice(0, 1) : later,
+      napsToday: isNight ? 0 : napsSince.length,
+    }
+    spot.feed = feedForecast(events, child, fam, now, ageDays, { asleepFrom: running.start, wakeAround, nightSleep: isNight, sleeps, night })
+    return spot
   }
 
-  if (!lastDone || now - lastDone.end! > 16 * H) return base
-  const lastWake = lastDone.end!
-  if (!lastDone.night) {
-    // If a whole night has gone by since the last nap, the morning wake-up wasn't logged.
-    const span = (nightEndMin - nightStartMin + 1440) % 1440
-    const midNight = (nightStartMin + span / 2) % 1440
-    let mid = atMinute(lastWake, midNight, tz)
-    if (mid <= lastWake) mid = atMinute(addDaysTz(lastWake, 1, tz).getTime(), midNight, tz)
-    if (mid <= now && !inWindow(minuteOfDay(now, tz), nightStartMin, nightEndMin)) return base
+  if (!lastDone || now - lastDone.end! > 16 * H) return { ...base, feed: feedForecast(events, child, fam, now, ageDays, { sleeps, night }) }
+  const woke = lastDone.end!
+  const prevLen = (woke - lastDone.start) / MIN
+  const afterNight = lastNightIdx === done.length - 1
+  // Awake well before the night's usual end: a night waking, so the next sleep is back to bed.
+  const intoNight = mod1440(tod(woke, tz) - night.onset)
+  const resettle = afterNight && night.learned && intoNight < night.length - 120 && prevLen < night.length * 0.6
+  const items = plan(c, woke, prevLen, (now - woke) / MIN, afterNight && !resettle, afterNight ? 0 : napsSince.length, resettle)
+  const bedtime = items.find((w) => w.kind === 'bedtime')
+  const spot: SweetSpot = {
+    ...base,
+    status: 'ok',
+    awakeSince: woke,
+    next: items[0],
+    later: items.slice(1),
+    bedtimeTarget: bedtime?.center,
+    napsToday: afterNight ? 0 : napsSince.length,
   }
-
-  // Awake in the night (a night waking): the next sleep is back to bed, not a nap.
-  const wokeAt = minuteOfDay(lastWake, tz)
-  const wakeToday = ((wakeMin % 1440) + 1440) % 1440
-  const morningish = wokeAt >= wakeToday - 90 && wokeAt < 12 * 60
-  if (lastDone.night && !morningish && inWindow(minuteOfDay(now, tz), nightStartMin, nightEndMin)) {
-    return { ...base, status: 'night', awakeSince: lastWake, wakeAround: nextMorning(now) }
-  }
-
-  const done = lastDone.night ? 0 : todayNaps.filter((s) => s.end !== null).length
-  const shortLast = !lastDone.night && (lastWake - lastDone.start) / MIN < (ageDays < 122 ? 30 : 40)
-  const items = plan(lastWake, done, shortLast)
-  const bedtime = items[items.length - 1]
-  return { ...base, status: 'ok', awakeSince: lastWake, next: items[0], later: items.slice(1), bedtimeTarget: bedtime.center, napsToday: done }
+  spot.feed = feedForecast(events, child, fam, now, ageDays, { nextSleep: items[0], sleeps, night })
+  return spot
 }
 
 // ---------------------------------------------------------------------------- feeds
 const FEED_TYPES = new Set(['nursing', 'bottle'])
 
-export function feedForecast(events: LeelaEvent[], child: Child, fam: Fam, now: number, ageDays: number | null): FeedForecast | undefined {
-  const since = now - 4 * DAY
+interface FeedContext {
+  sleeps?: Sleep[]
+  night?: Night
+  /** Asleep now since this moment, likely waking then. */
+  asleepFrom?: number
+  wakeAround?: number
+  nightSleep?: boolean
+  /** Awake now: the coming sleep. */
+  nextSleep?: SleepWindow
+}
+
+/**
+ * The next feed. Gaps between feeds are learned by time of day (evening cluster feeds are close
+ * together); gaps that span a long sleep aren't hunger gaps and are left out. If the baby usually
+ * sleeps through this kind of sleep without a feed, the feed is expected when they wake.
+ */
+export function feedForecast(events: LeelaEvent[], child: Child, fam: Fam, now: number, ageDays: number | null, ctx: FeedContext = {}): FeedForecast | undefined {
+  const tz = fam.timezone
+  const since = now - 21 * DAY
   const starts: number[] = []
   for (const e of events) {
     if (e.deleted_at || !FEED_TYPES.has(e.type) || e.child_id !== child.id) continue
@@ -610,25 +844,65 @@ export function feedForecast(events: LeelaEvent[], child: Child, fam: Fam, now: 
   for (const t of starts) if (!feeds.length || t - feeds[feeds.length - 1] > 30 * MIN) feeds.push(t)
   if (!feeds.length) return undefined
   const last = feeds[feeds.length - 1]
-  if (now - last > 12 * H) return undefined
-  const ns = toMin(fam.night_start)
-  const ne = toMin(fam.night_end)
-  const nightNow = inWindow(minuteOfDay(now, fam.timezone), ns, ne)
-  const recent = now - 3 * DAY
-  const gaps: { v: number; w: number; night: boolean }[] = []
+  if (now - last > 14 * H) return undefined
+
+  const long = (ctx.sleeps ?? []).filter((s) => s.end !== null && s.end - s.start >= 120 * MIN)
+  const spansLongSleep = (a: number, b: number) => long.some((s) => s.start >= a - 10 * MIN && s.end! <= b + 10 * MIN)
+  const gaps: W[] = []
+  const t0 = tod(last, tz)
   for (let k = 1; k < feeds.length; k++) {
     const gap = (feeds[k] - feeds[k - 1]) / MIN
-    if (feeds[k] < recent || gap < 45 || gap > 10 * 60) continue
-    gaps.push({ v: gap, w: recency(feeds[k], now), night: inWindow(minuteOfDay(feeds[k - 1], fam.timezone), ns, ne) })
+    if (gap < 35 || gap > 8 * 60 || spansLongSleep(feeds[k - 1], feeds[k])) continue
+    gaps.push({ v: gap, w: gauss(circ(tod(feeds[k - 1], tz), t0), 90) * halfLife((now - feeds[k]) / DAY, RECENT_HALF) })
   }
-  const same = gaps.filter((g) => g.night === nightNow)
-  const pool = same.length >= 3 ? same : gaps.length >= 3 ? gaps : []
-  let every = weightedMedian(pool)
+  let every = effective(gaps) >= 2 ? quantile(gaps, 0.5) : undefined
+  let lo = effective(gaps) >= 2 ? quantile(gaps, 0.3) : undefined
+  let hi = effective(gaps) >= 2 ? quantile(gaps, 0.7) : undefined
   let basis: FeedForecast['basis'] = 'logs'
   if (every === undefined) {
     if (ageDays === null || ageDays >= 365) return undefined
     every = ageDays < 30 ? 150 : ageDays < 91 ? 180 : ageDays < 183 ? 210 : 240
+    lo = every * 0.8
+    hi = every * 1.2
     basis = 'age'
   }
-  return { at: round5(last + every * MIN), last, everyMin: Math.round(every), basis }
+  const out = (at: number, when: FeedForecast['when'], range?: [number, number]): FeedForecast => ({ at: round5(at), last, everyMin: Math.round(every!), basis, when, ...(range ? { range: [round5(range[0]), round5(range[1])] } : {}) })
+  const byGap = out(last + every * MIN, 'gap', [last + lo! * MIN, last + hi! * MIN])
+
+  // How this baby feeds around long sleeps, learned from the logs.
+  const hist = long.filter((s) => s.end! < now)
+  const fedDuring = (s: Sleep) => feeds.some((f) => f > s.start + 20 * MIN && f < s.end! - 15 * MIN)
+  const similar = (startAt: number, minLen: number) =>
+    hist.filter((s) => s.end! - s.start >= minLen * MIN && Math.abs(circ(tod(s.start, tz), tod(startAt, tz))) <= 120 && s.start >= now - 14 * DAY)
+  const wakeDelay = (() => {
+    const xs: W[] = []
+    for (const s of hist) {
+      const f = feeds.find((x) => x >= s.end! - 10 * MIN && x <= s.end! + 120 * MIN)
+      if (f !== undefined) xs.push({ v: Math.max(0, (f - s.end!) / MIN), w: halfLife((now - s.end!) / DAY, RECENT_HALF) })
+    }
+    return xs.length >= 2 ? quantile(xs, 0.5)! : 15
+  })()
+
+  if (ctx.asleepFrom !== undefined && ctx.wakeAround !== undefined) {
+    const like = similar(ctx.asleepFrom, Math.min(180, Math.max(120, (now - ctx.asleepFrom) / MIN)))
+    const rate = like.length >= 2 ? like.filter(fedDuring).length / like.length : ctx.nightSleep ? 0.3 : 0.2
+    const onWaking = ctx.wakeAround + wakeDelay * MIN
+    // Usually sleeps through: the feed comes when they wake.
+    if (rate < 0.4 || byGap.at >= ctx.wakeAround - 20 * MIN) return out(Math.max(onWaking, now), 'on-waking')
+    return byGap.at < now ? out(now, 'gap') : byGap
+  }
+
+  const s = ctx.nextSleep
+  if (s && s.lengthMin && s.lengthMin >= 120 && byGap.at > s.center - 10 * MIN) {
+    // The usual gap runs into a long sleep the baby usually sleeps through.
+    const like = similar(s.center, 120)
+    const rate = like.length >= 2 ? like.filter(fedDuring).length / like.length : 0.3
+    if (rate < 0.4) {
+      const before = like.filter((x) => feeds.some((f) => f >= x.start - 60 * MIN && f <= x.start + 10 * MIN)).length
+      const fedRecently = now - last < 60 * MIN
+      if (like.length >= 2 && before / like.length >= 0.5 && !fedRecently) return out(Math.max(s.center - 20 * MIN, now), 'before-sleep')
+      return out(s.center + s.lengthMin * MIN + wakeDelay * MIN, 'on-waking')
+    }
+  }
+  return byGap
 }
