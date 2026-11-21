@@ -85,7 +85,7 @@ define(['./workbox-7e5eb42b'], (function (workbox) { 'use strict';
     "revision": "a0fa6bd94abf36300e356754ebe8e6fc"
   }, {
     "url": "index.html",
-    "revision": "4e6252e18bb01ffe6a0e8c55bb1f34f9"
+    "revision": "1a95f9239f74dc6e223020c5b053cbd8"
   }, {
     "url": "icon-maskable-512.png",
     "revision": "0714d37eb01eca0b9cd3ac13a0e321fc"
@@ -102,7 +102,7 @@ define(['./workbox-7e5eb42b'], (function (workbox) { 'use strict';
     "url": "apple-touch-icon.png",
     "revision": "4a622e72b3488d1afd021e7a1aac3ace"
   }, {
-    "url": "assets/seed-uqJ3Q9Ch.js",
+    "url": "assets/seed-nQ0Tln4O.js",
     "revision": null
   }, {
     "url": "assets/pdf.worker.min-DI4FfYVf.js",
@@ -126,7 +126,7 @@ define(['./workbox-7e5eb42b'], (function (workbox) { 'use strict';
     "url": "assets/index-DXHkv64O.css",
     "revision": null
   }, {
-    "url": "assets/index-BtWgao_M.js",
+    "url": "assets/index-BFFgM9tx.js",
     "revision": null
   }, {
     "url": "assets/baloo-2-vietnamese-wght-normal-C4ZonJY6.woff2",
