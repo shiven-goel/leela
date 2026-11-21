@@ -5,7 +5,7 @@ import { activeChild, useLeela } from '../lib/store'
 import { supabase } from '../lib/supabase'
 import { loadAllHistory } from '../lib/sync'
 import { fmtShortDate, fmtTime } from '../lib/time'
-import { GrowthCard } from './HistoryTrends'
+import { GrowthCard } from '../components/charts/GrowthCard'
 
 declare const __APP_VERSION__: string
 

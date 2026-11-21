@@ -33,6 +33,9 @@ export function BarChart({
   label,
   max,
   minStep = 0,
+  ticks,
+  tips,
+  onPick,
 }: {
   days: number[]
   tz: string
@@ -46,6 +49,12 @@ export function BarChart({
   max?: number
   /** Smallest gap between ticks: 1 for counts. */
   minStep?: number
+  /** Axis labels per column (null for none), instead of the days' dates: for weeks and months. */
+  ticks?: (string | null)[]
+  /** Tooltip heading per column, instead of the day's date. */
+  tips?: string[]
+  /** A second tap on a column (its tooltip showing) opens it. */
+  onPick?: (i: number) => void
 }) {
   const [ref, width] = useWidth<HTMLDivElement>()
   const [active, setActive] = useState<number | null>(null)
@@ -66,7 +75,9 @@ export function BarChart({
   const pick = (clientX: number, el: HTMLElement) => {
     const r = el.getBoundingClientRect()
     const i = Math.floor((clientX - r.left - AXIS) / band)
-    setActive(i >= 0 && i < n ? i : null)
+    const next = i >= 0 && i < n ? i : null
+    if (onPick && next !== null && next === active) onPick(next)
+    setActive(next)
   }
   const tip = active !== null ? active : null
 
@@ -113,7 +124,7 @@ export function BarChart({
               <path key={s.key} d={isTop ? barPath(x(i) - bw / 2, y1, bw, h, 4) : `M ${x(i) - bw / 2} ${y1} h ${bw} v ${h} h ${-bw} Z`} fill={s.color} />
             ) : null
           })
-          const t = dayTick(day, i, n, tz)
+          const t = ticks ? (n <= 16 || (n - 1 - i) % Math.ceil(n / 8) === 0 ? ticks[i] : null) : dayTick(day, i, n, tz)
           return (
             <g key={day}>
               {segs}
@@ -140,7 +151,7 @@ export function BarChart({
           style={{ left: Math.min(Math.max(0, x(tip) - 70), width - 150), minWidth: 140 }}
           role="status"
         >
-          <p className="font-semibold">{new TZDate(days[tip], tz).toLocaleDateString('en', { weekday: 'short', day: 'numeric', month: 'short', timeZone: tz })}</p>
+          <p className="font-semibold">{tips?.[tip] ?? new TZDate(days[tip], tz).toLocaleDateString('en', { weekday: 'short', day: 'numeric', month: 'short', timeZone: tz })}</p>
           {series.map((s) => (
             <p key={s.key} className="flex items-center gap-2">
               <span className="h-0.5 w-3 rounded-full" style={{ background: s.color }} aria-hidden="true" />
@@ -153,6 +164,7 @@ export function BarChart({
               Total <strong className="num font-semibold opacity-100">{format(totals[tip])}</strong>
             </p>
           )}
+          {onPick && <p className="mt-0.5 text-[12px] opacity-75">Tap again to open</p>}
         </div>
       )}
     </div>
