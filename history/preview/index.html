@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
+    <link rel="apple-touch-icon" href="./apple-touch-icon.png" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#0e1120" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="LAPdiary" />
+    <meta name="description" content="Your baby’s day, shared by the whole family." />
+    <title>LAPdiary</title>
+    <!-- Dark from the very first frame: never a bright white flash near a sleeping baby. -->
+    <style>html,body{color:#eceae4;background:#0e1120}html[data-theme=day],html[data-theme=day] body{background:#f1f3fa}html[data-theme=night],html[data-theme=night] body{background:#0a0d1d}</style>
+    <script>
+      // Apply the saved theme before the first paint. Dark unless someone chose day or night.
+      try {
+        var t = localStorage.getItem('leela-theme');
+        document.documentElement.dataset.theme = t === 'day' || t === 'night' ? t : 'dark';
+      } catch (e) {
+        document.documentElement.dataset.theme = 'dark';
+      }
+    </script>
+    <script type="module" crossorigin src="./assets/index-C8L2fzbF.js"></script>
+    <link rel="stylesheet" crossorigin href="./assets/index-DXHkv64O.css">
+  <link rel="manifest" href="./manifest.webmanifest"><script id="vite-plugin-pwa:register-sw" src="./registerSW.js"></script></head>
+  <body>
+    <div id="root"></div>
+  </body>
+</html>
