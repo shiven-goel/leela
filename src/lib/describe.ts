@@ -1,4 +1,5 @@
 import { ACTIVITY_KINDS, MILESTONE_KINDS, SLEEP_PLACES, TEMP_METHODS, TYPES } from './config'
+import { doseText } from './supplements'
 import { nursingSeconds, sleepKind } from './counting'
 import { durationText, fmtTime } from './time'
 import type { Family, LeelaEvent, Prefs, TimerSegment } from './types'
@@ -131,7 +132,7 @@ export function eventDetail(
       if (d.method) parts.push(TEMP_METHODS.find((m) => m.id === d.method)?.label.toLowerCase() ?? '')
       break
     case 'medicine':
-      if (d.supplement && d.name) parts.push(['Daily vitamin', d.dose ? `${d.dose} ${d.unit ?? ''}`.trim() : ''].filter(Boolean).join(' · '))
+      if (d.supplement && d.name) parts.push(['Daily vitamin', doseText(d)].filter(Boolean).join(' · '))
       else parts.push([d.name, d.dose, d.dose ? d.unit : undefined].filter(Boolean).join(' '))
       if (d.every_h) parts.push(`next in ${d.every_h} h`)
       break

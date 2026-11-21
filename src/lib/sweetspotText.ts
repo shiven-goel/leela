@@ -34,7 +34,7 @@ export function basisText(spot: SweetSpot, name: string): string {
   if (spot.basis === 'custom') return 'Using your own wake windows'
   if (spot.basis === 'logs') {
     const days = Math.min(14, spot.pattern.days)
-    return `Learned from ${name}’s last ${days} ${days === 1 ? 'day' : 'days'}, recent days counting most`
+    return `Learned from ${name}’s last ${days} ${days === 1 ? 'day' : 'days'}`
   }
   return `Based on what’s typical at ${spot.guide.label} until more is logged`
 }
