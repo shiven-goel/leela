@@ -85,7 +85,7 @@ define(['./workbox-7e5eb42b'], (function (workbox) { 'use strict';
     "revision": "a0fa6bd94abf36300e356754ebe8e6fc"
   }, {
     "url": "index.html",
-    "revision": "e23ff04968fbc2510b66c7e1fad3bfbf"
+    "revision": "5f22f9de865182d0087dc7bae2bf305a"
   }, {
     "url": "icon-maskable-512.png",
     "revision": "0714d37eb01eca0b9cd3ac13a0e321fc"
@@ -102,7 +102,7 @@ define(['./workbox-7e5eb42b'], (function (workbox) { 'use strict';
     "url": "apple-touch-icon.png",
     "revision": "4a622e72b3488d1afd021e7a1aac3ace"
   }, {
-    "url": "assets/seed-BSUwVN1m.js",
+    "url": "assets/seed-BIKx9MTw.js",
     "revision": null
   }, {
     "url": "assets/pdf.worker.min-DI4FfYVf.js",
@@ -123,7 +123,7 @@ define(['./workbox-7e5eb42b'], (function (workbox) { 'use strict';
     "url": "assets/mukta-latin-400-normal-DXND9OdD.woff2",
     "revision": null
   }, {
-    "url": "assets/index-P2utYYaz.js",
+    "url": "assets/index-xAFfXofE.js",
     "revision": null
   }, {
     "url": "assets/index-5FDPYwm1.css",
