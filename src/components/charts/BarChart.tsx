@@ -124,7 +124,7 @@ export function BarChart({
               <path key={s.key} d={isTop ? barPath(x(i) - bw / 2, y1, bw, h, 4) : `M ${x(i) - bw / 2} ${y1} h ${bw} v ${h} h ${-bw} Z`} fill={s.color} />
             ) : null
           })
-          const t = ticks ? (n <= 16 || (n - 1 - i) % Math.ceil(n / 8) === 0 ? ticks[i] : null) : dayTick(day, i, n, tz)
+          const t = ticks ? (n <= 7 || (n - 1 - i) % Math.ceil(n / (width < 420 ? 4 : 6)) === 0 ? ticks[i] : null) : dayTick(day, i, n, tz)
           return (
             <g key={day}>
               {segs}

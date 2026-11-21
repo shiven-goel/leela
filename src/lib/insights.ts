@@ -520,7 +520,14 @@ export function detailStats(c: Category, ds: DayAgg[], entries: LeelaEvent[], tz
   const out: Stat[] = []
   switch (c.id) {
     case 'sleep': {
-      const nights = ds.flatMap((d) => d.nights).filter((x) => x.end - x.start >= 4 * H)
+      // A night broken by a short waking is one night.
+      const merged: { start: number; end: number }[] = []
+      for (const x of ds.flatMap((d) => d.nights).sort((a, b) => a.start - b.start)) {
+        const last = merged[merged.length - 1]
+        if (last && x.start - last.end < 60 * MIN) last.end = Math.max(last.end, x.end)
+        else merged.push({ ...x })
+      }
+      const nights = merged.filter((x) => x.end - x.start >= 4 * H)
       const bed = medianClock(nights.map((x) => x.start), tz)
       const wake = medianClock(nights.map((x) => x.end), tz, 0)
       out.push(

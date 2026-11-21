@@ -57,7 +57,8 @@ export function WeekChart({
   const tz = family.timezone
   const n = columns.length
   const colW = (width - AXIS) / n
-  const bw = Math.max(12, Math.min(colW - 10, 30))
+  const narrow = colW < 30
+  const bw = Math.max(narrow ? 6 : 12, Math.min(colW - (narrow ? 5 : 10), 30))
   const start = toMin(startHHMM)
   const yRel = (minutes: number) => HEAD + (minutes / 1440) * PLOT
   const y = (c: Column, t: number) => HEAD + ((t - c.from) / (c.to - c.from)) * PLOT
@@ -91,12 +92,14 @@ export function WeekChart({
           const isToday = i === today
           return (
             <g key={c.day}>
-              <text x={cx(i)} y={16} textAnchor="middle" fontSize="12" fontWeight={isToday ? 700 : 500} fill={isToday ? 'var(--brand)' : 'var(--ink-2)'}>
-                {d.toLocaleDateString('en', { weekday: 'short', timeZone: tz }).slice(0, 2)}
+              <text x={cx(i)} y={16} textAnchor="middle" fontSize={narrow ? 11 : 12} fontWeight={isToday ? 700 : 500} fill={isToday ? 'var(--brand)' : 'var(--ink-2)'}>
+                {d.toLocaleDateString('en', { weekday: 'short', timeZone: tz }).slice(0, narrow ? 1 : 2)}
               </text>
-              <text x={cx(i)} y={34} textAnchor="middle" fontSize="15" fontWeight={700} fill={isToday ? 'var(--brand)' : 'var(--ink)'} className="num">
-                {d.getDate()}
-              </text>
+              {(!narrow || (n - 1 - i) % 2 === 0) && (
+                <text x={cx(i)} y={34} textAnchor="middle" fontSize={narrow ? 12 : 15} fontWeight={700} fill={isToday ? 'var(--brand)' : 'var(--ink)'} className="num">
+                  {d.getDate()}
+                </text>
+              )}
               {c.marks.filter(visible).map((m) => (
                 <MarkShape key={m.id} m={m} x={cx(i)} y1={y(c, m.start)} y2={y(c, m.end)} bw={bw} />
               ))}
