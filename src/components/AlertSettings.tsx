@@ -99,6 +99,7 @@ export function AlertSettings() {
           )}
           <Toggle label="Medicine doses due" checked={a.medicine} onChange={(v) => void saveAlerts({ medicine: v })} tone="health" />
           <Toggle label="Vaccines due" checked={a.vaccines} onChange={(v) => void saveAlerts({ vaccines: v })} tone="health" />
+          <Toggle label="Time to pump" checked={a.pump} onChange={(v) => void saveAlerts({ pump: v })} tone="pump" />
           <Toggle label="Evening summary of the day" checked={a.summary} onChange={(v) => void saveAlerts({ summary: v })} />
           {a.summary && (
             <div>
@@ -106,7 +107,7 @@ export function AlertSettings() {
               <Choices options={SUMMARY_TIMES.map((t) => ({ id: t, label: timeLabel(t) }))} value={a.summaryAt} onChange={(v) => v && void saveAlerts({ summaryAt: v })} columns={6} compact />
             </div>
           )}
-          <p className="text-[14px] text-ink-2">Medicine notifications come only for medicines logged with “Remind about the next dose”. Vaccine ones come 2 days before and on the day.</p>
+          <p className="text-[14px] text-ink-2">Medicine notifications come only for medicines logged with “Remind about the next dose”. Vaccine ones come 2 days before and on the day. Time to pump is for whoever pumps: it counts from the last breastfeed or pumping, using your own usual gap at that time of day.</p>
           <Button variant="secondary" size="md" onClick={() => void test()} disabled={busy}>
             Send a test notification
           </Button>

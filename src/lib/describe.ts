@@ -12,6 +12,7 @@ export function eventTitle(e: LeelaEvent, family: Family | null): string {
     case 'sleep':
       return family && sleepKind(e, family) === 'night' ? 'Night sleep' : 'Nap'
     case 'activity':
+      if (e.data.kind === 'outing' && e.data.where) return `Outing: ${e.data.where}`
       return ACTIVITY_KINDS.find((k) => k.id === e.data.kind)?.label ?? e.data.label ?? 'Activity'
     case 'milestone':
       return MILESTONE_KINDS.find((k) => k.id === e.data.kind)?.label ?? e.data.label ?? 'Milestone'

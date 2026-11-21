@@ -63,6 +63,7 @@ export const ACTIVITY_KINDS = [
   { id: 'tummy', label: 'Tummy time' },
   { id: 'bath', label: 'Bath' },
   { id: 'massage', label: 'Massage' },
+  { id: 'outing', label: 'Outing or visit' },
   { id: 'outdoor', label: 'Outdoor play' },
   { id: 'indoor', label: 'Indoor play' },
   { id: 'story', label: 'Story time' },

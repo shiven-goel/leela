@@ -11,7 +11,7 @@
 // (action "test"). Deploy with verify_jwt = false: this function checks the secret or the user.
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import { sweetSpot } from './sweetspot.js'
-import { clockText, dayCounts, localDay, localMidnight, localMinute, medicinesDue, readAlerts, summaryText, vaccinePlan, vaccineReminder } from './alerts.js'
+import { clockText, dayCounts, localDay, localMidnight, localMinute, medicinesDue, pumpDue, hoursText, readAlerts, summaryText, vaccinePlan, vaccineReminder } from './alerts.js'
 import { sendPush, type Vapid } from './webpush.ts'
 
 const DAY = 86_400_000
@@ -192,7 +192,8 @@ type Row = Record<string, any>
 async function others(admin: Db, vapid: Vapid, now: number, subs: Sub[], member: Set<string>, families: Row[], kids: Row[], want: (s: Sub) => ReturnType<typeof readAlerts>) {
   const kidIds = kids.map((k) => k.id)
   // The last two days of everything (for medicines and today's summary), and every vaccine entry.
-  const [{ data: recent }, { data: vax }] = await Promise.all([
+  const familyIds = [...new Set(kids.map((k) => k.family_id))]
+  const [{ data: recent }, { data: vax }, { data: emptying }] = await Promise.all([
     admin
       .from('events')
       .select('id, family_id, child_id, type, started_at, ended_at, timer_state, data, deleted_at')
@@ -209,6 +210,16 @@ async function others(admin: Db, vapid: Vapid, now: number, subs: Sub[], member:
       .eq('data->>kind', 'vaccine')
       .is('deleted_at', null)
       .limit(2000),
+    // A week of breastfeeds and pumping, for "time to pump" (pumping belongs to the family, not a baby).
+    admin
+      .from('events')
+      .select('id, family_id, child_id, type, started_at, ended_at, timer_state, data, deleted_at')
+      .in('family_id', familyIds)
+      .in('type', ['nursing', 'pump'])
+      .is('deleted_at', null)
+      .gte('started_at', new Date(now - 8 * DAY).toISOString())
+      .order('started_at')
+      .limit(5000),
   ])
   const events = (recent ?? []) as Row[]
   let sent = 0
@@ -217,6 +228,24 @@ async function others(admin: Db, vapid: Vapid, now: number, subs: Sub[], member:
     const status = await deliver(admin, sub, { ...message, url: appUrl(sub) }, vapid)
     await admin.from('push_sent').update({ status }).match({ subscription_id: sub.id, child_id: kid.id, slot })
     if (status >= 200 && status < 300) sent++
+  }
+
+  // Time to pump: once per emptying, from when it's due, for up to 2 hours.
+  for (const fam of families) {
+    const kid = kids.find((k) => k.family_id === fam.id)
+    const phones = subs.filter((s) => s.family_id === fam.id && member.has(`${s.family_id}/${s.user_id}`) && want(s).pump)
+    if (!kid || !phones.length) continue
+    const tz = fam.timezone || 'UTC'
+    const p = pumpDue(((emptying ?? []) as Row[]).filter((e) => e.family_id === fam.id) as never, now, tz)
+    if (!p || now < p.dueAt || now >= p.dueAt + 2 * H) continue
+    for (const sub of phones) {
+      await send(sub, kid, `pump/${p.lastAt}`, {
+        title: 'Time to pump',
+        body: `Last emptied ${clockText(p.lastAt, tz)} (${p.lastKind === 'pump' ? 'pumping' : 'breastfeed'}), ${hoursText(now - p.lastAt)} ago.`,
+        tag: `pump-${fam.id}`,
+        open: 'today',
+      })
+    }
   }
 
   for (const kid of kids) {

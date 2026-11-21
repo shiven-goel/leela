@@ -19,15 +19,17 @@ export interface AlertPrefs {
   summary: boolean
   /** When the summary comes, "HH:MM" in the family's time zone. */
   summaryAt: string
+  /** When it's time to pump again (off unless turned on: it's for whoever pumps). */
+  pump: boolean
 }
 
-export const DEFAULT_ALERTS: AlertPrefs = { sweetspot: true, medicine: true, vaccines: true, summary: true, summaryAt: '20:30' }
+export const DEFAULT_ALERTS: AlertPrefs = { sweetspot: true, medicine: true, vaccines: true, summary: true, summaryAt: '20:30', pump: false }
 
 export function readAlerts(prefs: object | null | undefined): AlertPrefs {
   const a = ((prefs as { alerts?: unknown } | null | undefined)?.alerts ?? {}) as Record<string, unknown>
   const flag = (k: keyof AlertPrefs) => (typeof a[k] === 'boolean' ? (a[k] as boolean) : (DEFAULT_ALERTS[k] as boolean))
   const at = typeof a.summaryAt === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(a.summaryAt) ? a.summaryAt : DEFAULT_ALERTS.summaryAt
-  return { sweetspot: flag('sweetspot'), medicine: flag('medicine'), vaccines: flag('vaccines'), summary: flag('summary'), summaryAt: at }
+  return { sweetspot: flag('sweetspot'), medicine: flag('medicine'), vaccines: flag('vaccines'), summary: flag('summary'), summaryAt: at, pump: flag('pump') }
 }
 
 /** Hours between doses that a medicine reminder can be set to. */
@@ -74,6 +76,83 @@ export function medicinesDue(events: Ev[], childId: string): MedicineDue[] {
     out.push({ eventId: e.id, name: String(e.data.name).trim(), dose: e.data.dose ? dose : '', lastAt, dueAt: lastAt + every * H, everyH: every })
   }
   return out.sort((a, b) => a.dueAt - b.dueAt)
+}
+
+// ------------------------------------------------------------------------- pumping
+export interface PumpDue {
+  /** When the breasts were last emptied: the end of the last breastfeed or pumping. */
+  lastAt: number
+  lastKind: 'nursing' | 'pump'
+  /** Usual time from one emptying to the next around this time of day, minutes. */
+  everyMin: number
+  dueAt: number
+  /** Learned from the logs, or the usual 3 hours. */
+  basis: 'logs' | 'default'
+}
+
+const MIN = 60_000
+/** When an emptying ended: its end, or its start plus its logged length. Null while it's going. */
+function endOf(e: Ev): number | null {
+  if (e.timer_state) return null
+  if (e.ended_at) return Date.parse(e.ended_at)
+  const d = e.data ?? {}
+  const secs = Number(d.left_s ?? 0) + Number(d.right_s ?? 0) || Number(d.total_s ?? 0)
+  return Date.parse(e.started_at) + (Number.isFinite(secs) ? secs * 1000 : 0)
+}
+
+/**
+ * When the next pumping is due: from when the breasts were last emptied (a breastfeed or a
+ * pumping, whichever was later), plus the mother's own usual gap at this time of day, learned
+ * from the last week (recent days and nearby hours count most). Null while feeding or pumping,
+ * or with nothing logged in the last two days.
+ */
+export function pumpDue(events: Ev[], now: number, timeZone: string): PumpDue | null {
+  const all = events
+    .filter((e) => !e.deleted_at && (e.type === 'nursing' || e.type === 'pump') && Date.parse(e.started_at) <= now && Date.parse(e.started_at) > now - 8 * 24 * H)
+    .sort((a, b) => a.started_at.localeCompare(b.started_at))
+  if (all.some((e) => e.timer_state && Date.parse(e.started_at) > now - 3 * H)) return null
+  // A breastfeed followed by pumping within 45 minutes is one emptying.
+  const sessions: { start: number; end: number; kind: 'nursing' | 'pump' }[] = []
+  for (const e of all) {
+    const start = Date.parse(e.started_at)
+    const end = Math.max(start, endOf(e) ?? start)
+    const last = sessions[sessions.length - 1]
+    if (last && start - last.end < 45 * MIN) {
+      if (end >= last.end) {
+        last.end = end
+        last.kind = e.type as 'nursing' | 'pump'
+      }
+    } else sessions.push({ start, end, kind: e.type as 'nursing' | 'pump' })
+  }
+  const last = sessions[sessions.length - 1]
+  if (!last || last.end < now - 2 * 24 * H) return null
+  const t0 = localMinute(last.end, timeZone)
+  const xs: { v: number; w: number }[] = []
+  for (let i = 0; i + 1 < sessions.length; i++) {
+    const gap = (sessions[i + 1].start - sessions[i].end) / MIN
+    if (gap < 40 || gap > 9 * 60) continue
+    let d = Math.abs(localMinute(sessions[i].end, timeZone) - t0)
+    d = Math.min(d, 1440 - d)
+    const w = Math.exp(-((d / 120) ** 2) / 2) * Math.pow(0.5, (now - sessions[i].end) / (3 * 24 * H))
+    if (w > 0.01) xs.push({ v: gap, w })
+  }
+  const weight = xs.reduce((t, x) => t + x.w, 0)
+  let every = 180
+  let basis: PumpDue['basis'] = 'default'
+  if (xs.length >= 3 && weight > 0.5) {
+    xs.sort((a, b) => a.v - b.v)
+    let acc = 0
+    for (const x of xs) {
+      acc += x.w
+      if (acc >= weight / 2) {
+        every = x.v
+        break
+      }
+    }
+    every = Math.min(6 * 60, Math.max(90, Math.round(every / 5) * 5))
+    basis = 'logs'
+  }
+  return { lastAt: last.end, lastKind: last.kind, everyMin: every, dueAt: last.end + every * MIN, basis }
 }
 
 // ------------------------------------------------------------------------- time zones

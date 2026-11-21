@@ -18,6 +18,7 @@ import { lastOf, sleepState, totalsFor } from '../lib/counting'
 import { eventDetail, eventTitle } from '../lib/describe'
 import { phase, sweetSpot } from '../lib/sweetspot'
 import { givenToday, readSupplements, vitaminsSub } from '../lib/supplements'
+import { pumpDue } from '../lib/alerts'
 import { activeChild, loggedBy, myPrefs, useLeela } from '../lib/store'
 import { ageText, agoText, dayStart, durationText, fmtTime } from '../lib/time'
 import type { EventData, EventType, LeelaEvent } from '../lib/types'
@@ -122,6 +123,18 @@ export function TodayScreen() {
   const latest = (f: (e: LeelaEvent) => boolean) => events.filter((e) => e.child_id === child.id && f(e)).reduce<LeelaEvent | undefined>((best, e) => (!best || e.started_at > best.started_at ? e : best), undefined)
   const lastBath = latest((e) => e.type === 'activity' && e.data.kind === 'bath')
   const lastMassage = latest((e) => e.type === 'activity' && (e.data.kind === 'massage' || e.data.label === 'Massage'))
+  const pumpNext = runningPump ? null : pumpDue(events as never, now, tz)
+  const pumpSub = runningPump
+    ? `Going ${durationText(now - Date.parse(runningPump.started_at))}`
+    : pumpNext
+      ? pumpNext.dueAt > now
+        ? `Next ~${fmtTime(pumpNext.dueAt, tz)}`
+        : now - pumpNext.dueAt < 10 * 60_000
+          ? 'Due now'
+          : `Due ${durationText(now - pumpNext.dueAt)} ago`
+      : totals.pumpMl
+        ? `${totals.pumpMl} ml today`
+        : 'Start now'
   const vitamins = readSupplements(child.settings)
   const vitaminsLeft = vitamins.filter((s) => !givenToday(events, child.id, s, now, tz)).length
 
@@ -164,7 +177,7 @@ export function TodayScreen() {
     {
       id: 'pump',
       label: 'Pump',
-      sub: runningPump ? `Going ${durationText(now - Date.parse(runningPump.started_at))}` : totals.pumpMl ? `${totals.pumpMl} ml today` : 'Start now',
+      sub: pumpSub,
       tone: 'pump',
       icon: <TypeIcon type="pump" size={28} />,
       active: Boolean(runningPump),

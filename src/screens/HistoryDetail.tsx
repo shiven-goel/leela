@@ -22,6 +22,7 @@ import {
   entriesOf,
   headline,
   hourCounts,
+  topPlaces,
   valueText,
   type Category,
 } from '../lib/insights'
@@ -246,6 +247,17 @@ function Body({
 
           {(c.id === 'vitamins' || c.id === 'medicine') && <NamesPanel entries={entries} tz={tz} lastDay={days[days.length - 1]} days={days.length} vitamins={c.id === 'vitamins'} />}
           {c.id === 'solids' && <FoodsPanel entries={entries} />}
+          {c.id === 'activity:outing' && topPlaces(ds).length > 0 && (
+            <Panel title="Places">
+              <ul className="flex flex-wrap gap-2">
+                {topPlaces(ds).map(([p, v]) => (
+                  <li key={p} className="rounded-full bg-card-2 px-3 py-1 text-[14px] ring-1 ring-line">
+                    {p} <span className="text-ink-3">×{v}</span>
+                  </li>
+                ))}
+              </ul>
+            </Panel>
+          )}
         </>
       )}
 

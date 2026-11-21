@@ -67,6 +67,8 @@ export interface EventData {
   every_h?: number | null
   // activities & milestones
   label?: string
+  /** Outings: where to ("Nani's house", "the market"). */
+  where?: string
   // notes: long text lives here, the short `notes` column is for comments on other entries
   title?: string
   body?: string
@@ -144,7 +146,7 @@ export interface Prefs {
   /** Shows the admin panel (set by hand in the database, for Keshav only). */
   admin?: boolean
   /** Which notifications this person gets (see alerts.ts). */
-  alerts?: Partial<{ sweetspot: boolean; medicine: boolean; vaccines: boolean; summary: boolean; summaryAt: string }>
+  alerts?: Partial<{ sweetspot: boolean; medicine: boolean; vaccines: boolean; summary: boolean; summaryAt: string; pump: boolean }>
 }
 
 export interface Child {

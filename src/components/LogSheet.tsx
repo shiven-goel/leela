@@ -11,7 +11,7 @@ import {
   TEMP_METHODS,
   TYPES,
 } from '../lib/config'
-import { DOSE_GAPS } from '../lib/alerts'
+import { DOSE_GAPS, pumpDue } from '../lib/alerts'
 import { eventTitle } from '../lib/describe'
 import { activeChild, myPrefs, useLeela } from '../lib/store'
 import { durationText, fmtTime } from '../lib/time'
@@ -529,6 +529,7 @@ export function LogSheet({
       {/* ------------------------------------------------------------ PUMP */}
       {type === 'pump' && (
         <>
+          {!edit && !running && <PumpHint events={Object.values(events)} tz={tz} />}
           {!edit && !running && (
             <>
               <Button tone="pump" className="mb-3 w-full" onClick={() => void startNow()}>
@@ -732,6 +733,7 @@ export function LogSheet({
           <Field label="Activity">
             <Choices options={ACTIVITY_KINDS} value={draft.data.kind as 'tummy' | undefined} onChange={(v) => setData({ kind: v })} tone="activity" columns={2} />
           </Field>
+          {draft.data.kind === 'outing' && <OutingFields where={draft.data.where ?? ''} onChange={(w) => setData({ where: w })} events={Object.values(events)} childId={childId} />}
           {!edit && !running && (
             <>
               <Button tone="activity" className="mb-3 w-full" onClick={() => void startNow()} disabled={!draft.data.kind}>
@@ -900,6 +902,50 @@ function SolidsFields({
         />
       </Field>
       <PhotoPicker paths={draft.photos} onChange={(p) => set({ photos: p })} max={2} />
+    </>
+  )
+}
+
+/** When the breasts were last emptied and when the next pumping is likely due. */
+function PumpHint({ events, tz }: { events: LeelaEvent[]; tz: string }) {
+  const now = Date.now()
+  const p = pumpDue(events as never, now, tz)
+  if (!p) return null
+  const due = p.dueAt <= now ? `due now (${p.dueAt < now - 10 * 60_000 ? `since ${fmtTime(p.dueAt, tz)}` : 'about now'})` : `next about ${fmtTime(p.dueAt, tz)}`
+  return (
+    <p className="mb-4 rounded-2xl bg-[var(--pump-soft)] px-4 py-3 text-[15px] leading-snug">
+      Last emptied {fmtTime(p.lastAt, tz)} ({p.lastKind === 'pump' ? 'pumping' : 'breastfeed'}), {durationText(now - p.lastAt)} ago. {p.basis === 'logs' ? `Your usual gap around then is ${durationText(p.everyMin * 60_000)}` : 'Every 3 hours is usual'}, so {due}.
+    </p>
+  )
+}
+
+/** Where an outing went, with the family's own places one tap away. */
+function OutingFields({ where, onChange, events, childId }: { where: string; onChange: (w: string) => void; events: LeelaEvent[]; childId: string | null }) {
+  const places = useMemo(() => {
+    const n = new Map<string, number>()
+    for (const e of events) {
+      if (e.deleted_at || e.type !== 'activity' || e.child_id !== childId || e.data.kind !== 'outing' || typeof e.data.where !== 'string' || !e.data.where.trim()) continue
+      n.set(e.data.where.trim(), (n.get(e.data.where.trim()) ?? 0) + 1)
+    }
+    const mine = [...n.entries()].sort((a, b) => b[1] - a[1]).map(([p]) => p)
+    const ideas = ['Nana-Nani’s house', 'Relatives', 'Friends', 'Market', 'Park', 'Restaurant'].filter((p) => !mine.some((m) => m.toLowerCase() === p.toLowerCase()))
+    return [...mine.slice(0, 8), ...ideas].slice(0, 10)
+  }, [events, childId])
+  return (
+    <>
+      <TextInput label="Where" value={where} onChange={(e) => onChange(e.target.value)} placeholder="Nani’s house, the market…" />
+      <div className="-mt-3 mb-5 flex flex-wrap gap-2">
+        {places.map((p) => (
+          <button
+            key={p}
+            type="button"
+            onClick={() => onChange(p)}
+            className={clsx('min-h-10 rounded-full px-4 text-[15px] ring-1', where === p ? 'bg-[var(--activity)] font-semibold text-white ring-transparent' : 'bg-card-2 ring-line')}
+          >
+            {p}
+          </button>
+        ))}
+      </div>
     </>
   )
 }

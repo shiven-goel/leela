@@ -56,6 +56,8 @@ export interface DayAgg {
   photos: number
   /** Night sleep that started this day: onset and end (for bedtime and wake-up). */
   nights: { start: number; end: number }[]
+  /** Where outings went. */
+  places: string[]
 }
 
 /** The activity kind an entry belongs to: its kind, or its own label, or 'other'. */
@@ -126,6 +128,7 @@ export function dayAggs(events: LeelaEvent[], segments: TimerSegment[], childId:
       notes: 0,
       photos: 0,
       nights: [],
+      places: [],
     }
     for (const e of mine) {
       const s = Date.parse(e.started_at)
@@ -171,6 +174,7 @@ export function dayAggs(events: LeelaEvent[], segments: TimerSegment[], childId:
           break
         case 'activity': {
           const k = activityKey(e)
+          if (k === 'outing' && typeof e.data.where === 'string' && e.data.where.trim()) d.places.push(e.data.where.trim())
           const a = (d.act[k] ??= { n: 0, timed: 0, min: 0 })
           a.n++
           const m = (eventEndMs(e, now) - s) / MIN
@@ -453,6 +457,10 @@ export function headline(c: Category, ds: DayAgg[]): Headline {
       const k = c.id.slice(9)
       const a = ds.reduce((t, d) => ({ n: t.n + (d.act[k]?.n ?? 0), timed: t.timed + (d.act[k]?.timed ?? 0), min: t.min + (d.act[k]?.min ?? 0) }), { n: 0, timed: 0, min: 0 })
       const typical = a.timed ? ` · ${durationText((a.min / a.timed) * MIN)} each` : ''
+      if (k === 'outing') {
+        const places = topPlaces(ds)
+        if (places.length) return { value: timesText(a.n), unit: '', sub: places.slice(0, 3).map(([p, v]) => (v > 1 ? `${p} ×${v}` : p)).join(' · ') }
+      }
       return { value: timesText(a.n), unit: '', sub: `${onDays.slice(3)}${typical}`.replace(/^ · /, '') }
     }
   }
@@ -469,6 +477,13 @@ export function change(c: Category, now: DayAgg[], before: DayAgg[]): string | n
   const sign = d > 0 ? '+' : '−'
   const mag = Math.abs(d)
   return `${sign}${c.id === 'sleep' ? durationText(mag * H) : c.id === 'pump' ? `${Math.round(mag)} ml` : one(mag)}`
+}
+
+/** Places outings went, most visited first. */
+export function topPlaces(ds: DayAgg[]): [string, number][] {
+  const m = new Map<string, number>()
+  for (const d of ds) for (const p of d.places) m.set(p, (m.get(p) ?? 0) + 1)
+  return [...m.entries()].sort((a, b) => b[1] - a[1])
 }
 
 // ---------------------------------------------------------------------------- detail screen
@@ -643,7 +658,7 @@ export function entriesOf(c: Category, events: LeelaEvent[], childId: string, us
 /** Text to search an entry by: its title, details, notes, foods and names. */
 export function searchText(e: LeelaEvent, title: string, detail: string | null): string {
   const d = e.data
-  return [title, detail, e.notes, d.title, d.body, d.name, d.label, d.vaccine, (d.tags ?? []).join(' '), (d.foods ?? []).map((f) => f.name).join(' '), d.ghar && typeof d.ghar === 'object' ? (d.ghar as { detail?: string }).detail : '']
+  return [title, detail, e.notes, d.title, d.body, d.name, d.label, d.where, d.vaccine, (d.tags ?? []).join(' '), (d.foods ?? []).map((f) => f.name).join(' '), d.ghar && typeof d.ghar === 'object' ? (d.ghar as { detail?: string }).detail : '']
     .filter(Boolean)
     .join(' ')
     .toLowerCase()
