@@ -376,7 +376,7 @@ function CatchUp({ events, now }: { events: LeelaEvent[]; now: number }) {
         <h2 id="catchup-h" className="font-display text-[19px] font-bold leading-tight">
           While you were away
           <span className="block font-sans text-[14px] font-normal text-ink-2">
-            {names.join(' and ')} logged {items.length} {items.length === 1 ? 'thing' : 'things'} since {fmtTime(sinceMs, family.timezone)}
+            {names.length > 1 ? `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}` : names[0]} logged {items.length} {items.length === 1 ? 'thing' : 'things'} since {fmtTime(sinceMs, family.timezone)}
           </span>
         </h2>
         <button type="button" onClick={() => set({ catchUpDismissed: true })} className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-card-2" aria-label="Dismiss">
