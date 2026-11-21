@@ -164,6 +164,11 @@ function Body({
     <>
       <PeriodBar period={period} onChange={setPeriod} tz={tz} now={now} start={start} birth={child.birth_date} kinds={['week', 'month', 'all']} />
 
+      {c.id === 'solids' && (
+        <button type="button" onClick={() => useLeela.getState().set({ overlay: { kind: 'solids' } })} className="mb-4 flex min-h-12 w-full items-center justify-between rounded-2xl bg-[var(--feed-soft)] px-4 text-[16px] font-semibold">
+          Every food tried and the allergens <span aria-hidden="true">›</span>
+        </button>
+      )}
       {c.id === 'pump' && (
         <button type="button" onClick={() => useLeela.getState().set({ overlay: { kind: 'pumping' } })} className="mb-4 flex min-h-12 w-full items-center justify-between rounded-2xl bg-[var(--pump-soft)] px-4 text-[16px] font-semibold">
           Pumping coach: yield, best times, what would help <span aria-hidden="true">›</span>

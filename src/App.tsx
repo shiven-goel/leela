@@ -19,6 +19,7 @@ import { VaccinesScreen } from './screens/VaccinesScreen'
 import { ReportScreen } from './screens/ReportScreen'
 import { AdminScreen } from './screens/AdminScreen'
 import { PumpingScreen } from './screens/PumpingScreen'
+import { SolidsScreen } from './screens/SolidsScreen'
 import { myPrefs } from './lib/store'
 
 export function App() {
@@ -84,6 +85,7 @@ export function App() {
         <BookScreen open={overlay?.kind === 'book'} onClose={closeOverlay} />
         <VaccinesScreen open={overlay?.kind === 'vaccines'} onClose={closeOverlay} />
         <PumpingScreen open={overlay?.kind === 'pumping'} onClose={closeOverlay} />
+        <SolidsScreen open={overlay?.kind === 'solids'} onClose={closeOverlay} />
         <ReportScreen open={overlay?.kind === 'report'} onClose={closeOverlay} />
         {myPrefs().admin === true && <AdminScreen open={overlay?.kind === 'admin'} onClose={closeOverlay} />}
       </>

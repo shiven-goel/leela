@@ -1,6 +1,7 @@
 import { CaretRight } from '@phosphor-icons/react'
 import { MORE_GROUPS, TYPES, toneSoft, toneVar } from '../lib/config'
 import type { EventType } from '../lib/types'
+import { useLeela } from '../lib/store'
 import { TypeIcon } from './Icon'
 import { Sheet } from './Sheet'
 
@@ -45,6 +46,11 @@ export function MoreSheet({
               )
             })}
           </div>
+          {g.title === 'Feeding' && (
+            <button type="button" onClick={() => { onClose(); useLeela.getState().set({ overlay: { kind: 'solids' } }) }} className="mt-2 flex min-h-12 w-full items-center justify-between rounded-2xl bg-card-2 px-4 text-[16px] font-semibold ring-1 ring-line">
+              Solids: foods tried, allergens, readiness <CaretRight size={18} weight="bold" className="text-ink-3" aria-hidden="true" />
+            </button>
+          )}
           {g.title === 'Health' && onVaccines && (
             <button type="button" onClick={onVaccines} className="mt-2 flex min-h-12 w-full items-center justify-between rounded-2xl bg-card-2 px-4 text-[16px] font-semibold ring-1 ring-line">
               Vaccine schedule <CaretRight size={18} weight="bold" className="text-ink-3" aria-hidden="true" />
