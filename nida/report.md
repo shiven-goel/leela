@@ -1,8 +1,10 @@
-# Check of nida at 6f6ad04
+# Check of nida at 4aaba66
 ## Lint
 OK
 ```
-ile=supabase/functions/ghar-bridge/sweetspot.js,line=2,endLine=2,col=3149,endColumn=3197,title=eslint(no-unused-expressions)::supabase/functions/ghar-bridge/sweetspot.js:2:3149: Expected expression to be used
+sed
+::warning file=supabase/functions/ghar-bridge/sweetspot.js,line=2,endLine=2,col=2207,endColumn=2339,title=eslint(no-unused-expressions)::supabase/functions/ghar-bridge/sweetspot.js:2:2207: Expected expression to be used
+::warning file=supabase/functions/ghar-bridge/sweetspot.js,line=2,endLine=2,col=3149,endColumn=3197,title=eslint(no-unused-expressions)::supabase/functions/ghar-bridge/sweetspot.js:2:3149: Expected expression to be used
 ::warning file=supabase/functions/ghar-bridge/sweetspot.js,line=2,endLine=2,col=3962,endColumn=3999,title=eslint(no-unused-expressions)::supabase/functions/ghar-bridge/sweetspot.js:2:3962: Expected expression to be used
 ::warning file=supabase/functions/ghar-bridge/sweetspot.js,line=2,endLine=2,col=4352,endColumn=4417,title=eslint(no-unused-expressions)::supabase/functions/ghar-bridge/sweetspot.js:2:4352: Expected expression to be used
 ::warning file=supabase/functions/ghar-bridge/sweetspot.js,line=2,endLine=2,col=4494,endColumn=4610,title=eslint(no-unused-expressions)::supabase/functions/ghar-bridge/sweetspot.js:2:4494: Expected expression to be used
@@ -31,17 +33,18 @@ ile=supabase/functions/ghar-bridge/sweetspot.js,line=2,endLine=2,col=3149,endCol
 ::warning file=supabase/functions/sweetspot-push/alerts.js,line=2,endLine=2,col=7510,endColumn=7608,title=eslint(no-unused-expressions)::supabase/functions/sweetspot-push/alerts.js:2:7510: Expected expression to be used
 ::warning file=supabase/functions/sweetspot-push/alerts.js,line=2,endLine=2,col=7887,endColumn=7911,title=eslint(no-unused-expressions)::supabase/functions/sweetspot-push/alerts.js:2:7887: Expected expression to be used
 ::warning file=supabase/functions/sweetspot-push/alerts.js,line=2,endLine=2,col=8059,endColumn=8114,title=eslint(no-unused-expressions)::supabase/functions/sweetspot-push/alerts.js:2:8059: Expected expression to be used
-::warning file=supabase/functions/sweetspot-push/alerts.js,line=2,endLine=2,col=8965,endColumn=9154,title=eslint(no-unused-expressions)::supabase/functions/sweetspot-push/alerts.js:2:8965: Expected expression to be used
-::warning file=supabase/functions/sweetspot-push/alerts.js,line=2,endLine=2,col=9646,endColumn=9694,title=eslint(no-unused-expressions)::supabase/functions/sweetspot-push/alerts.js:2:9646: Expected expression to be used
-::warning file=supabase/functions/sweetspot-push/alerts.js,line=2,endLine=2,col=10515,endColumn=10541,title=eslint(no-unused-expressions)::supabase/functions/sweetspot-push/alerts.js:2:10515: Expected expression to be used
-::warning file=supabase/functions/sweetspot-push/alerts.js,line=2,endLine=2,col=10574,endColumn=10600,title=eslint(no-unused-expressions)::supabase/functions/sweetspot-push/alerts.js:2:10574: Expected expression to be used
-::warning file=supabase/functions/sweetspot-push/alerts.js,line=2,endLine=2,col=10626,endColumn=10714,title=eslint(no-unused-expressions)::supabase/functions/sweetspot-push/alerts.js:2:10626: Expected expression to be used
-::warning file=supabase/functions/sweetspot-push/alerts.js,line=2,endLine=2,col=10740,endColumn=10761,title=eslint(no-unused-expressions)::supabase/functions/sweetspot-push/alerts.js:2:10740: Expected expression to be used
-::warning file=supabase/functions/sweetspot-push/alerts.js,line=2,endLine=2,col=10818,endColumn=10889,title=eslint(no-unused-expressions)::supabase/functions/sweetspot-push/alerts.js:2:10818: Expected expression to be used
-::warning file=supabase/functions/sweetspot-push/alerts.js,line=2,endLine=2,col=10895,endColumn=10925,title=eslint(no-unused-expressions)::supabase/functions/sweetspot-push/alerts.js:2:10895: Expected expression to be used
-::warning file=supabase/functions/sweetspot-push/alerts.js,line=2,endLine=2,col=11738,endColumn=11780,title=eslint(no-unused-expressions)::supabase/functions/sweetspot-push/alerts.js:2:11738: Expected expression to be used
-::warning file=supabase/functions/sweetspot-push/alerts.js,line=2,endLine=2,col=12474,endColumn=12644,title=eslint(no-unused-expressions)::supabase/functions/sweetspot-push/alerts.js:2:12474: Expected expression to be used
-::warning file=supabase/functions/sweetspot-push/alerts.js,line=2,endLine=2,col=12725,endColumn=12758,title=eslint(no-unused-expressions)::supabase/functions/sweetspot-push/alerts.js:2:12725: Expected expression to be used
+::warning file=supabase/functions/sweetspot-push/alerts.js,line=2,endLine=2,col=9048,endColumn=9237,title=eslint(no-unused-expressions)::supabase/functions/sweetspot-push/alerts.js:2:9048: Expected expression to be used
+::warning file=supabase/functions/sweetspot-push/alerts.js,line=2,endLine=2,col=9729,endColumn=9777,title=eslint(no-unused-expressions)::supabase/functions/sweetspot-push/alerts.js:2:9729: Expected expression to be used
+::warning file=supabase/functions/sweetspot-push/alerts.js,line=2,endLine=2,col=10598,endColumn=10624,title=eslint(no-unused-expressions)::supabase/functions/sweetspot-push/alerts.js:2:10598: Expected expression to be used
+::warning file=supabase/functions/sweetspot-push/alerts.js,line=2,endLine=2,col=10657,endColumn=10683,title=eslint(no-unused-expressions)::supabase/functions/sweetspot-push/alerts.js:2:10657: Expected expression to be used
+::warning file=supabase/functions/sweetspot-push/alerts.js,line=2,endLine=2,col=10709,endColumn=10797,title=eslint(no-unused-expressions)::supabase/functions/sweetspot-push/alerts.js:2:10709: Expected expression to be used
+::warning file=supabase/functions/sweetspot-push/alerts.js,line=2,endLine=2,col=10823,endColumn=10844,title=eslint(no-unused-expressions)::supabase/functions/sweetspot-push/alerts.js:2:10823: Expected expression to be used
+::warning file=supabase/functions/sweetspot-push/alerts.js,line=2,endLine=2,col=10901,endColumn=10972,title=eslint(no-unused-expressions)::supabase/functions/sweetspot-push/alerts.js:2:10901: Expected expression to be used
+::warning file=supabase/functions/sweetspot-push/alerts.js,line=2,endLine=2,col=10978,endColumn=11008,title=eslint(no-unused-expressions)::supabase/functions/sweetspot-push/alerts.js:2:10978: Expected expression to be used
+::warning file=supabase/functions/sweetspot-push/alerts.js,line=2,endLine=2,col=11821,endColumn=11863,title=eslint(no-unused-expressions)::supabase/functions/sweetspot-push/alerts.js:2:11821: Expected expression to be used
+::warning file=supabase/functions/sweetspot-push/alerts.js,line=2,endLine=2,col=12557,endColumn=12727,title=eslint(no-unused-expressions)::supabase/functions/sweetspot-push/alerts.js:2:12557: Expected expression to be used
+::warning file=supabase/functions/sweetspot-push/alerts.js,line=2,endLine=2,col=12808,endColumn=12841,title=eslint(no-unused-expressions)::supabase/functions/sweetspot-push/alerts.js:2:12808: Expected expression to be used
+::warning file=src/lib/import/files.ts,line=52,endLine=52,col=9,endColumn=15,title=eslint(no-control-regex)::src/lib/import/files.ts:52:9: Unexpected control characters
 ::warning file=supabase/functions/sweetspot-push/sweetspot.js,line=2,endLine=2,col=1890,endColumn=1917,title=eslint(no-unused-expressions)::supabase/functions/sweetspot-push/sweetspot.js:2:1890: Expected expression to be used
 ::warning file=supabase/functions/sweetspot-push/sweetspot.js,line=2,endLine=2,col=2207,endColumn=2339,title=eslint(no-unused-expressions)::supabase/functions/sweetspot-push/sweetspot.js:2:2207: Expected expression to be used
 ::warning file=supabase/functions/sweetspot-push/sweetspot.js,line=2,endLine=2,col=3149,endColumn=3197,title=eslint(no-unused-expressions)::supabase/functions/sweetspot-push/sweetspot.js:2:3149: Expected expression to be used
@@ -66,36 +69,34 @@ ile=supabase/functions/ghar-bridge/sweetspot.js,line=2,endLine=2,col=3149,endCol
 ::warning file=supabase/functions/sweetspot-push/sweetspot.js,line=2,endLine=2,col=13670,endColumn=13757,title=eslint(no-unused-expressions)::supabase/functions/sweetspot-push/sweetspot.js:2:13670: Expected expression to be used
 ::warning file=supabase/functions/sweetspot-push/sweetspot.js,line=2,endLine=2,col=13888,endColumn=13944,title=eslint(no-unused-expressions)::supabase/functions/sweetspot-push/sweetspot.js:2:13888: Expected expression to be used
 ::warning file=supabase/functions/sweetspot-push/sweetspot.js,line=2,endLine=2,col=14341,endColumn=14413,title=eslint(no-unused-expressions)::supabase/functions/sweetspot-push/sweetspot.js:2:14341: Expected expression to be used
-::warning file=src/lib/import/classify.ts,line=153,endLine=153,col=7,endColumn=8,title=eslint(no-unused-vars)::src/lib/import/classify.ts:153:7: Variable 's' is assigned a value but never used. Unused variables should start with a '_'.
-::warning file=src/lib/import/files.ts,line=52,endLine=52,col=9,endColumn=15,title=eslint(no-control-regex)::src/lib/import/files.ts:52:9: Unexpected control characters
-::warning file=src/components/LogSheet.tsx,line=911,endLine=911,col=15,endColumn=25,title=react(purity)::src/components/LogSheet.tsx:911:15: Cannot call impure function during render
-::warning file=src/components/LogSheet.tsx,line=1006,endLine=1006,col=72,endColumn=82,title=react(purity)::src/components/LogSheet.tsx:1006:72: Cannot call impure function during render
-::warning file=src/screens/ImportScreen.tsx,line=285,endLine=285,col=175,endColumn=185,title=react(purity)::src/screens/ImportScreen.tsx:285:175: Cannot call impure function during render
-::warning file=src/screens/ImportScreen.tsx,line=797,endLine=797,col=81,endColumn=91,title=react(purity)::src/screens/ImportScreen.tsx:797:81: Cannot call impure function during render
-::warning file=src/screens/ImportScreen.tsx,line=128,endLine=128,col=5,endColumn=12,title=react(set-state-in-effect)::src/screens/ImportScreen.tsx:128:5: Calling setState synchronously within an effect can trigger cascading renders
-::warning file=src/components/TimeField.tsx,line=159,endLine=159,col=15,endColumn=25,title=react(purity)::src/components/TimeField.tsx:159:15: Cannot call impure function during render
-::warning file=src/screens/OnboardingScreen.tsx,line=164,endLine=164,col=77,endColumn=87,title=react(purity)::src/screens/OnboardingScreen.tsx:164:77: Cannot call impure function during render
-::warning file=src/screens/ReportScreen.tsx,line=222,endLine=222,col=46,endColumn=56,title=react(purity)::src/screens/ReportScreen.tsx:222:46: Cannot call impure function during render
-::warning file=src/components/NoteEditor.tsx,line=236,endLine=236,col=52,endColumn=62,title=react(purity)::src/components/NoteEditor.tsx:236:52: Cannot call impure function during render
-::warning file=src/screens/PumpingScreen.tsx,line=21,endLine=21,col=15,endColumn=25,title=react(purity)::src/screens/PumpingScreen.tsx:21:15: Cannot call impure function during render
 ::warning file=src/components/AlertSettings.tsx,line=8,endLine=8,col=14,endColumn=26,title=react(only-export-components)::src/components/AlertSettings.tsx:8:14: Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components.
 ::warning file=src/components/AlertSettings.tsx,line=15,endLine=15,col=17,endColumn=25,title=react(only-export-components)::src/components/AlertSettings.tsx:15:17: Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components.
 ::warning file=src/components/AlertSettings.tsx,line=19,endLine=19,col=23,endColumn=33,title=react(only-export-components)::src/components/AlertSettings.tsx:19:23: Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components.
 ::warning file=src/components/SleepSheet.tsx,line=48,endLine=48,col=7,endColumn=14,title=react(set-state-in-effect)::src/components/SleepSheet.tsx:48:7: Calling setState synchronously within an effect can trigger cascading renders
+::warning file=src/components/LogSheet.tsx,line=911,endLine=911,col=15,endColumn=25,title=react(purity)::src/components/LogSheet.tsx:911:15: Cannot call impure function during render
+::warning file=src/components/LogSheet.tsx,line=1006,endLine=1006,col=72,endColumn=82,title=react(purity)::src/components/LogSheet.tsx:1006:72: Cannot call impure function during render
+::warning file=src/components/TimeField.tsx,line=159,endLine=159,col=15,endColumn=25,title=react(purity)::src/components/TimeField.tsx:159:15: Cannot call impure function during render
+::warning file=src/components/NoteEditor.tsx,line=236,endLine=236,col=52,endColumn=62,title=react(purity)::src/components/NoteEditor.tsx:236:52: Cannot call impure function during render
+::warning file=src/components/ChildSheet.tsx,line=14,endLine=14,col=17,endColumn=27,title=react(purity)::src/components/ChildSheet.tsx:14:17: Cannot call impure function during render
+::warning file=src/components/ChildSheet.tsx,line=18,endLine=18,col=5,endColumn=12,title=react(set-state-in-effect)::src/components/ChildSheet.tsx:18:5: Calling setState synchronously within an effect can trigger cascading renders
+::warning file=src/components/Sheet.tsx,line=7,endLine=7,col=17,endColumn=31,title=react(only-export-components)::src/components/Sheet.tsx:7:17: Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components.
+::warning file=src/components/Sheet.tsx,line=9,endLine=9,col=10,endColumn=18,title=react(refs)::src/components/Sheet.tsx:9:10: Cannot access refs during render
+::warning file=src/screens/ImportScreen.tsx,line=285,endLine=285,col=175,endColumn=185,title=react(purity)::src/screens/ImportScreen.tsx:285:175: Cannot call impure function during render
+::warning file=src/screens/ImportScreen.tsx,line=797,endLine=797,col=81,endColumn=91,title=react(purity)::src/screens/ImportScreen.tsx:797:81: Cannot call impure function during render
+::warning file=src/screens/ImportScreen.tsx,line=128,endLine=128,col=5,endColumn=12,title=react(set-state-in-effect)::src/screens/ImportScreen.tsx:128:5: Calling setState synchronously within an effect can trigger cascading renders
+::warning file=src/screens/PumpingScreen.tsx,line=21,endLine=21,col=15,endColumn=25,title=react(purity)::src/screens/PumpingScreen.tsx:21:15: Cannot call impure function during render
+::warning file=src/screens/OnboardingScreen.tsx,line=164,endLine=164,col=77,endColumn=87,title=react(purity)::src/screens/OnboardingScreen.tsx:164:77: Cannot call impure function during render
 ::warning file=src/screens/DiaryScreen.tsx,line=30,endLine=30,col=15,endColumn=25,title=react(purity)::src/screens/DiaryScreen.tsx:30:15: Cannot call impure function during render
+::warning file=src/screens/ReportScreen.tsx,line=222,endLine=222,col=46,endColumn=56,title=react(purity)::src/screens/ReportScreen.tsx:222:46: Cannot call impure function during render
 ::warning file=src/screens/BookScreen.tsx,line=186,endLine=186,col=77,endColumn=87,title=react(purity)::src/screens/BookScreen.tsx:186:77: Cannot call impure function during render
 ::warning file=src/screens/BookScreen.tsx,line=38,endLine=38,col=5,endColumn=15,title=react(set-state-in-effect)::src/screens/BookScreen.tsx:38:5: Calling setState synchronously within an effect can trigger cascading renders
 ::warning file=src/screens/HistorySearch.tsx,line=45,endLine=45,col=17,endColumn=27,title=react(purity)::src/screens/HistorySearch.tsx:45:17: Cannot call impure function during render
 ::warning file=src/screens/HistorySearch.tsx,line=123,endLine=123,col=47,endColumn=57,title=react(purity)::src/screens/HistorySearch.tsx:123:47: Cannot call impure function during render
 ::warning file=src/screens/SolidsScreen.tsx,line=20,endLine=20,col=15,endColumn=25,title=react(purity)::src/screens/SolidsScreen.tsx:20:15: Cannot call impure function during render
 ::warning file=src/screens/VaccinesScreen.tsx,line=25,endLine=25,col=26,endColumn=36,title=react(purity)::src/screens/VaccinesScreen.tsx:25:26: Cannot call impure function during render
-::warning file=src/components/ChildSheet.tsx,line=14,endLine=14,col=17,endColumn=27,title=react(purity)::src/components/ChildSheet.tsx:14:17: Cannot call impure function during render
-::warning file=src/components/ChildSheet.tsx,line=18,endLine=18,col=5,endColumn=12,title=react(set-state-in-effect)::src/components/ChildSheet.tsx:18:5: Calling setState synchronously within an effect can trigger cascading renders
-::warning file=src/components/Sheet.tsx,line=7,endLine=7,col=17,endColumn=31,title=react(only-export-components)::src/components/Sheet.tsx:7:17: Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components.
-::warning file=src/components/Sheet.tsx,line=9,endLine=9,col=10,endColumn=18,title=react(refs)::src/components/Sheet.tsx:9:10: Cannot access refs during render
 
 Found 93 warnings and 0 errors.
-Finished in 77ms on 125 files with 116 rules using 4 threads.
+Finished in 186ms on 125 files with 116 rules using 4 threads.
 ```
 ## Unit tests
 OK
@@ -125,11 +126,11 @@ OK
 
   supabase/functions/sweetspot-push/sweetspot.js  15.0kb
 
-⚡ Done in 3ms
+⚡ Done in 5ms
 
-  supabase/functions/sweetspot-push/alerts.js  13.7kb
+  supabase/functions/sweetspot-push/alerts.js  13.8kb
 
-⚡ Done in 2ms
+⚡ Done in 4ms
 ```
 ## Edge bundles compared with the committed ones
 ```
@@ -165,18 +166,18 @@ dist/assets/pdf.worker.min-CjEcRF4W.mjs                    1,264.34 kB
 dist/assets/index-DCk2qOSf.css                                39.35 kB │ gzip:   9.02 kB
 dist/assets/pdf.worker.min-BBgG5STW.js                         0.07 kB │ gzip:   0.09 kB
 dist/assets/pdf-ULJPBbF3.js                                  430.16 kB │ gzip: 129.27 kB
-dist/assets/index-CdDbdykY.js                              1,331.74 kB │ gzip: 395.42 kB
+dist/assets/index-DFJDCeGu.js                              1,331.82 kB │ gzip: 395.46 kB
 
 [33m[plugin builtin:vite-reporter] 
 (!) Some chunks are larger than 500 kB after minification. Consider:
 - Using dynamic import() to code-split the application
 - Use build.rolldownOptions.output.codeSplitting to improve chunking: https://rolldown.rs/reference/OutputOptions.codeSplitting
 - Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.[39m
-[32m✓ built in 563ms[39m
+[32m✓ built in 920ms[39m
 
 [36mPWA v2.0.0[39m
 mode      [35mgenerateSW[39m
-precache  [32m26 entries[39m [2m(2051.29 KiB)[22m
+precache  [32m26 entries[39m [2m(2051.37 KiB)[22m
 files generated
   [2mdist/sw.js[22m
   [2mdist/workbox-9c191d2f.js[22m
@@ -207,20 +208,20 @@ preview/assets/baloo-2-devanagari-wght-normal-B4j4n2PV.woff2    115.14 kB
 preview/assets/pdf.worker.min-CjEcRF4W.mjs                    1,264.34 kB
 preview/assets/index-4Ge-K8Wd.css                                39.21 kB │ gzip:   9.00 kB
 preview/assets/pdf.worker.min-DI4FfYVf.js                         0.08 kB │ gzip:   0.10 kB
-preview/assets/seed-D_Km4gg8.js                                   5.10 kB │ gzip:   2.37 kB
+preview/assets/seed-Rtbiom8M.js                                   5.10 kB │ gzip:   2.37 kB
 preview/assets/pdf-ULJPBbF3.js                                  430.16 kB │ gzip: 129.27 kB
-preview/assets/index-CzfKasFx.js                              1,662.86 kB │ gzip: 474.49 kB
+preview/assets/index-Bmlfezo9.js                              1,662.95 kB │ gzip: 474.52 kB
 
 [33m[plugin builtin:vite-reporter] 
 (!) Some chunks are larger than 500 kB after minification. Consider:
 - Using dynamic import() to code-split the application
 - Use build.rolldownOptions.output.codeSplitting to improve chunking: https://rolldown.rs/reference/OutputOptions.codeSplitting
 - Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.[39m
-[32m✓ built in 615ms[39m
+[32m✓ built in 970ms[39m
 
 [36mPWA v2.0.0[39m
 mode      [35mgenerateSW[39m
-precache  [32m27 entries[39m [2m(2379.48 KiB)[22m
+precache  [32m27 entries[39m [2m(2379.57 KiB)[22m
 files generated
   [2mpreview/sw.js[22m
   [2mpreview/workbox-7e5eb42b.js[22m
