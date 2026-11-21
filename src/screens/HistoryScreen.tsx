@@ -407,7 +407,7 @@ function Totals({ ds, days, childName, cats }: { ds: DayAgg[]; days: number; chi
   for (const c of cats.filter((x) => x.id.startsWith('activity:')).slice(0, 3)) {
     const k = c.id.slice(9)
     const v = sum((d) => d.act[k]?.n ?? 0)
-    if (v) parts.push(`${v.toLocaleString('en')} × ${c.label.toLowerCase()}`)
+    if (v) parts.push(`${c.label.toLowerCase()} ${v === 1 ? 'once' : `${v.toLocaleString('en')} times`}`)
   }
   const firsts = sum((d) => d.milestones)
   if (firsts) parts.push(n(firsts, 'first', 'firsts'))

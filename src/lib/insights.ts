@@ -7,7 +7,7 @@
 import { ACTIVITY_KINDS, showsFor, type Tone } from './config'
 import { eventEndMs, nursingSeconds, sleepKind, totalsFor, type Totals } from './counting'
 import type { Bucket } from './period'
-import { addDaysTz, durationText, minuteOfDay } from './time'
+import { addDaysTz, dayLabel, durationText, fmtTime, minuteOfDay } from './time'
 import type { EventType, Family, LeelaEvent, TimerSegment } from './types'
 
 const MIN = 60_000
@@ -70,6 +70,13 @@ export function activityKey(e: Pick<LeelaEvent, 'data'>): string {
 export const activityLabel = (key: string) => (key.startsWith('label:') ? key.slice(6) : ACTIVITY_KINDS.find((a) => a.id === key)?.label ?? (key === 'other' ? 'Other activities' : key))
 
 const medName = (e: LeelaEvent) => String(e.data.name ?? '').trim() || 'Medicine'
+
+/** A daily vitamin or supplement: given from the Vitamins list, or a medicine entry named like one. */
+export function isSupplement(e: Pick<LeelaEvent, 'type' | 'data'>): boolean {
+  if (e.type !== 'medicine') return false
+  if (e.data.supplement) return true
+  return /\b(vit(amin)?\b|vit\.? ?[a-e]\d?|d3|iron|ferr|multi-?vit|calcium|zinc|probiotic|dha|omega)/i.test(String(e.data.name ?? ''))
+}
 
 /** Entries that belong on this baby's screens, overlapping [from, to). */
 export function visibleIn(events: LeelaEvent[], childId: string, userId: string | null, from: number, to: number, now: number): LeelaEvent[] {
@@ -174,7 +181,7 @@ export function dayAggs(events: LeelaEvent[], segments: TimerSegment[], childId:
           break
         }
         case 'medicine':
-          if (e.data.supplement) d.vit[medName(e)] = (d.vit[medName(e)] ?? 0) + 1
+          if (isSupplement(e)) d.vit[medName(e)] = (d.vit[medName(e)] ?? 0) + 1
           else d.med[medName(e)] = (d.med[medName(e)] ?? 0) + 1
           break
         case 'temperature':
@@ -239,6 +246,11 @@ export interface Category {
 }
 
 const sum = (xs: number[]) => xs.reduce((a, b) => a + b, 0)
+/** Days from the first one where `has` is true to the end: vitamins started partway through count from then. */
+const fromFirst = (ds: DayAgg[], has: (d: DayAgg) => boolean) => {
+  const i = ds.findIndex(has)
+  return i < 0 ? ds : ds.slice(i)
+}
 const avg = (xs: number[]) => (xs.length ? sum(xs) / xs.length : 0)
 const one = (n: number) => (Math.round(n * 10) / 10).toString()
 const timesText = (n: number) => `${n} ${n === 1 ? 'time' : 'times'}`
@@ -264,8 +276,8 @@ const BASE: Category[] = [
   { id: 'diaper', label: 'Diapers', tone: 'diaper', icon: { type: 'diaper' }, group: 'rhythm', match: (e) => e.type === 'diaper', has: (d) => d.t.diapers > 0, rate: true },
   { id: 'potty', label: 'Potty', tone: 'diaper', icon: { type: 'potty' }, group: 'rhythm', match: (e) => e.type === 'potty', has: (d) => d.pottyWins + d.pottyAccidents > 0, rate: false },
   { id: 'pump', label: 'Pumping', tone: 'pump', icon: { type: 'pump' }, group: 'rhythm', match: (e) => e.type === 'pump', has: (d) => d.pumpN > 0, rate: true },
-  { id: 'vitamins', label: 'Vitamins', tone: 'health', icon: { type: 'medicine' }, group: 'care', match: (e) => e.type === 'medicine' && Boolean(e.data.supplement), has: (d) => Object.keys(d.vit).length > 0, rate: false },
-  { id: 'medicine', label: 'Medicine', tone: 'health', icon: { type: 'medicine' }, group: 'health', match: (e) => e.type === 'medicine' && !e.data.supplement, has: (d) => Object.keys(d.med).length > 0, rate: false },
+  { id: 'vitamins', label: 'Vitamins', tone: 'health', icon: { type: 'medicine' }, group: 'care', match: isSupplement, has: (d) => Object.keys(d.vit).length > 0, rate: false },
+  { id: 'medicine', label: 'Medicine', tone: 'health', icon: { type: 'medicine' }, group: 'health', match: (e) => e.type === 'medicine' && !isSupplement(e), has: (d) => Object.keys(d.med).length > 0, rate: false },
   { id: 'temperature', label: 'Temperature', tone: 'health', icon: { type: 'temperature' }, group: 'health', match: (e) => e.type === 'temperature', has: (d) => d.temps.length > 0, rate: false },
   { id: 'health', label: 'Symptoms, visits and vaccines', tone: 'health', icon: { type: 'symptom' }, group: 'health', match: (e) => e.type === 'symptom', has: (d) => d.health > 0, rate: false },
   { id: 'growth', label: 'Growth', tone: 'growth', icon: { type: 'growth' }, group: 'health', match: (e) => e.type === 'growth', has: (d) => d.growth > 0, rate: false },
@@ -412,8 +424,12 @@ export function headline(c: Category, ds: DayAgg[]): Headline {
       return { value: String(sum(ds.map((d) => d.pottyWins))), unit: 'on the potty', sub: `${sum(ds.map((d) => d.pottyAccidents))} accidents` }
     case 'vitamins': {
       const names = [...new Set(ds.flatMap((d) => Object.keys(d.vit)))]
-      const per = names.map((nm) => `${nm} ${ds.filter((d) => d.vit[nm]).length}/${n}`)
-      return { value: single ? names.join(', ') : `${logged.length} of ${n}`, unit: single ? '' : 'days', sub: single ? 'given' : per.join(' · ') }
+      const per = names.map((nm) => {
+        const span = fromFirst(ds, (d) => Boolean(d.vit[nm]))
+        return `${nm} ${span.filter((d) => d.vit[nm]).length}/${span.length}`
+      })
+      const span = fromFirst(ds, c.has)
+      return { value: single ? names.join(', ') : `${logged.length} of ${span.length}`, unit: single ? '' : 'days', sub: single ? 'given' : `${per.join(' · ')}${span.length < n ? ' · since the first' : ''}` }
     }
     case 'medicine': {
       const by = new Map<string, number>()
@@ -449,7 +465,7 @@ export function change(c: Category, now: DayAgg[], before: DayAgg[]): string | n
   const b = bucketValue(c, before)
   const d = a - b
   const tiny = c.id === 'sleep' ? Math.abs(d) < 10 / 60 : c.id === 'pump' ? Math.abs(d) < 10 : Math.abs(d) < 0.3
-  if (tiny) return 'same as before'
+  if (tiny) return 'steady'
   const sign = d > 0 ? '+' : '−'
   const mag = Math.abs(d)
   return `${sign}${c.id === 'sleep' ? durationText(mag * H) : c.id === 'pump' ? `${Math.round(mag)} ml` : one(mag)}`
@@ -543,7 +559,10 @@ export function detailStats(c: Category, ds: DayAgg[], entries: LeelaEvent[], tz
       break
     case 'vitamins': {
       const names = [...new Set(ds.flatMap((d) => Object.keys(d.vit)))]
-      for (const nm of names) out.push({ label: nm, value: `${ds.filter((d) => d.vit[nm]).length} of ${n} days` })
+      for (const nm of names) {
+        const span = fromFirst(ds, (d) => Boolean(d.vit[nm]))
+        out.push({ label: nm, value: `${span.filter((d) => d.vit[nm]).length} of ${span.length} days` })
+      }
       break
     }
     case 'temperature': {
@@ -556,14 +575,13 @@ export function detailStats(c: Category, ds: DayAgg[], entries: LeelaEvent[], tz
       if (c.id.startsWith('activity:')) {
         const k = c.id.slice(9)
         const a = ds.reduce((t, d) => ({ n: t.n + (d.act[k]?.n ?? 0), timed: t.timed + (d.act[k]?.timed ?? 0), min: t.min + (d.act[k]?.min ?? 0) }), { n: 0, timed: 0, min: 0 })
-        out.push({ label: 'Times', value: String(a.n) }, { label: 'Days', value: `${logged.length} of ${n}` })
         if (a.timed) out.push({ label: 'Usually lasts', value: durationText((a.min / a.timed) * MIN) }, { label: 'Time logged', value: durationText(a.min * MIN) })
-      } else {
-        out.push({ label: 'Entries', value: String(entries.length) })
       }
     }
   }
   if (usual && c.id !== 'sleep') out.push({ label: 'Most often', value: usual })
+  const last = entries[0]
+  if (last && c.id !== 'sleep') out.push({ label: 'Last one', value: `${dayLabel(last.started_at, tz)}, ${fmtTime(last.started_at, tz)}` })
   return out
 }
 

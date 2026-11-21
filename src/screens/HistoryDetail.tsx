@@ -27,7 +27,7 @@ import {
 } from '../lib/insights'
 import { bucketsOf, customPeriod, daysOf, grain, makePeriod, type Period } from '../lib/period'
 import { myPrefs, useLeela } from '../lib/store'
-import { addDaysTz, dayLabel, fmtTime } from '../lib/time'
+import { addDaysTz, dayLabel, daysBetween, fmtTime } from '../lib/time'
 import type { Child, Family, LeelaEvent, TimerSegment } from '../lib/types'
 import { FEVER_C, cToF, tempUnit } from '../lib/units'
 
@@ -244,7 +244,7 @@ function Body({
             </Panel>
           )}
 
-          {(c.id === 'vitamins' || c.id === 'medicine') && <NamesPanel entries={entries} tz={tz} days={days.length} vitamins={c.id === 'vitamins'} />}
+          {(c.id === 'vitamins' || c.id === 'medicine') && <NamesPanel entries={entries} tz={tz} lastDay={days[days.length - 1]} days={days.length} vitamins={c.id === 'vitamins'} />}
           {c.id === 'solids' && <FoodsPanel entries={entries} />}
         </>
       )}
@@ -301,14 +301,15 @@ function TempPanel({ entries, period, tz, now, fahrenheit }: { entries: LeelaEve
   )
 }
 
-function NamesPanel({ entries, tz, days, vitamins }: { entries: LeelaEvent[]; tz: string; days: number; vitamins: boolean }) {
-  const by = new Map<string, { n: number; days: Set<string>; last: LeelaEvent }>()
+function NamesPanel({ entries, tz, lastDay, days, vitamins }: { entries: LeelaEvent[]; tz: string; lastDay: number; days: number; vitamins: boolean }) {
+  const by = new Map<string, { n: number; days: Set<string>; last: LeelaEvent; first: LeelaEvent }>()
   for (const e of entries) {
     const k = String(e.data.name ?? '').trim() || 'Medicine'
-    const cur = by.get(k) ?? { n: 0, days: new Set<string>(), last: e }
+    const cur = by.get(k) ?? { n: 0, days: new Set<string>(), last: e, first: e }
     cur.n++
     cur.days.add(new Date(Date.parse(e.started_at)).toLocaleDateString('en-CA', { timeZone: tz }))
     if (e.started_at > cur.last.started_at) cur.last = e
+    if (e.started_at < cur.first.started_at) cur.first = e
     by.set(k, cur)
   }
   if (!by.size) return null
@@ -323,7 +324,7 @@ function NamesPanel({ entries, tz, days, vitamins }: { entries: LeelaEvent[]; tz
                 Last {dayLabel(v.last.started_at, tz).toLowerCase()} at {fmtTime(v.last.started_at, tz)}
               </span>
             </span>
-            <span className="num shrink-0 text-[15px] font-semibold">{vitamins ? `${v.days.size} of ${days} days` : `${v.n} ${v.n === 1 ? 'dose' : 'doses'}`}</span>
+            <span className="num shrink-0 text-[15px] font-semibold">{vitamins ? `${v.days.size} of ${Math.min(days, daysBetween(lastDay, v.first.started_at, tz) + 1)} days` : `${v.n} ${v.n === 1 ? 'dose' : 'doses'}`}</span>
           </li>
         ))}
       </ul>

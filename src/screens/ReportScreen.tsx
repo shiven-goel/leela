@@ -4,7 +4,7 @@ import { createPortal } from 'react-dom'
 import { Overlay } from '../components/Overlay'
 import { Button, Choices } from '../components/ui'
 import { dailyStats } from '../lib/charts'
-import { activityLabel, dayAggs } from '../lib/insights'
+import { activityLabel, dayAggs, isSupplement } from '../lib/insights'
 import { bucketsOf, customPeriod, rangeText } from '../lib/period'
 import { eventDetail, eventTitle } from '../lib/describe'
 import { activeChild, myPrefs, useLeela } from '../lib/store'
@@ -61,7 +61,7 @@ export function ReportScreen({ open, onClose }: { open: boolean; onClose: () => 
     for (const [k, v] of [...acts.entries()].sort((x, y) => y[1] - x[1])) care.push(`${activityLabel(k)} ${v} ${v === 1 ? 'time' : 'times'}`)
     const from = list[0]
     const health = events
-      .filter((e) => e.child_id === child.id && ['medicine', 'temperature', 'symptom'].includes(e.type) && !e.data.supplement && Date.parse(e.started_at) >= from && Date.parse(e.started_at) < addDaysTz(list[list.length - 1], 1, tz).getTime())
+      .filter((e) => e.child_id === child.id && ['medicine', 'temperature', 'symptom'].includes(e.type) && !isSupplement(e) && Date.parse(e.started_at) >= from && Date.parse(e.started_at) < addDaysTz(list[list.length - 1], 1, tz).getTime())
       .sort((a, b) => a.started_at.localeCompare(b.started_at))
     const growth = events
       .filter((e) => e.child_id === child.id && e.type === 'growth')

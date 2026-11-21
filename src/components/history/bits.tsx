@@ -9,7 +9,7 @@ import { useWidth } from '../charts/useWidth'
 export function Sparkline({ values, color }: { values: number[]; color: string }) {
   const max = Math.max(...values, 0)
   if (values.length < 2 || !(max > 0)) return null
-  const w = 72
+  const w = 64
   const h = 26
   const gap = values.length > 20 ? 1 : 2
   const bw = Math.max(1, (w - gap * (values.length - 1)) / values.length)
@@ -33,14 +33,18 @@ export function CategoryRow({ c, h, spark, delta, onOpen }: { c: Category; h: He
         </span>
         <span className="min-w-0 flex-1">
           <span className="block truncate text-[14px] font-semibold text-ink-2">{c.label}</span>
-          <span className="flex items-baseline gap-1.5">
-            <span className="num truncate text-[20px] font-bold leading-tight">{h.value}</span>
-            {h.unit && <span className="shrink-0 text-[14px] text-ink-2">{h.unit}</span>}
-            {delta && <span className="num shrink-0 rounded-full bg-card-2 px-2 text-[12px] font-semibold text-ink-2 ring-1 ring-line">{delta}</span>}
+          <span className="flex min-w-0 items-baseline gap-1.5">
+            <span className="num shrink-0 text-[20px] font-bold leading-tight">{h.value}</span>
+            {h.unit && <span className="truncate text-[14px] text-ink-2">{h.unit}</span>}
           </span>
           {h.sub && <span className="block truncate text-[13px] text-ink-2">{h.sub}</span>}
         </span>
-        {spark && <Sparkline values={spark} color={toneVar(c.tone)} />}
+        {(spark || delta) && (
+          <span className="flex shrink-0 flex-col items-end gap-1">
+            {spark && <Sparkline values={spark} color={toneVar(c.tone)} />}
+            {delta && <span className="num text-[12px] font-semibold text-ink-2">{delta}</span>}
+          </span>
+        )}
         <CaretRight size={18} weight="bold" className="shrink-0 text-ink-3" aria-hidden="true" />
       </button>
     </li>

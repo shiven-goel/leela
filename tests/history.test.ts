@@ -1,7 +1,7 @@
 // Run with: npx tsx tests/history.test.ts
 import assert from 'node:assert/strict'
 import { bucketsOf, customPeriod, daysOf, grain, lifeMonths, makePeriod, periodLabel, previousPeriod, shiftPeriod } from '../src/lib/period'
-import { activityKey, bucketValue, categoriesFor, categoryById, change, dayAggs, detailNote, detailStats, entriesOf, headline, medianClock, clockOf, usualHour } from '../src/lib/insights'
+import { activityKey, isSupplement, bucketValue, categoriesFor, categoryById, change, dayAggs, detailNote, detailStats, entriesOf, headline, medianClock, clockOf, usualHour } from '../src/lib/insights'
 import type { LeelaEvent } from '../src/lib/types'
 
 const TZ = 'Asia/Kolkata'
@@ -143,5 +143,15 @@ assert.equal(change(sleep, ds, before), null)
 // Bedtimes either side of midnight average sensibly.
 assert.equal(clockOf(medianClock([at('2026-11-20', '23:30'), at('2026-11-21', '00:30'), at('2026-11-22', '01:00')], TZ)!), '12:30 AM')
 assert.equal(usualHour([at('2026-11-20', '10:10')], TZ), null, 'too few to say')
+
+// Vitamins logged as plain medicine before the Vitamins list still count as vitamins.
+{
+  const med = (name: string, supplement?: boolean) => ({ type: 'medicine' as const, data: { name, supplement } })
+  assert.equal(isSupplement(med('Vitamin D3 drops')), true)
+  assert.equal(isSupplement(med('Tayo 60K')), false)
+  assert.equal(isSupplement(med('Calpol')), false)
+  assert.equal(isSupplement(med('Ferrous sulphate')), true)
+  assert.equal(isSupplement(med('Anything', true)), true)
+}
 
 console.log('history: all good')
