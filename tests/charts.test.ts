@@ -40,8 +40,8 @@ const nurse = col31.marks.find((m) => m.type === 'nursing')!
 assert.equal(nurse.end - nurse.start, 900_000)
 // Sleep draws first so feeds and diapers sit on top of it.
 assert.equal(col31.marks[0].kind, 'nap')
-// Another person's pumping isn't on this person's chart; clipping keeps marks inside the window.
-assert.ok(!col31.marks.some((m) => m.type === 'pump'))
+// Another person's pumping is on this person's chart too; clipping keeps marks inside the window.
+assert.ok(col31.marks.some((m) => m.type === 'pump'))
 const clipped = marksBetween(events, [], 'c', 'u', fam, at('2026-10-31', '00:00'), at('2026-10-31', '03:00'), now)
 assert.equal(clipped[0].start, at('2026-10-31', '00:00'))
 
