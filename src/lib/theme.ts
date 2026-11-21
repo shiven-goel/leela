@@ -1,14 +1,18 @@
-import { inNightWindow } from './counting'
 import type { Family } from './types'
 
-export type ThemeMode = 'auto' | 'day' | 'night'
+/**
+ * dark: the everyday look, soft dark with clear text, gentle around the baby (the default).
+ * night: warmer and dimmer, amber text on deep navy, for the middle of the night.
+ * day: light, for bright daylight.
+ */
+export type ThemeMode = 'dark' | 'night' | 'day'
 
 export function getThemeMode(): ThemeMode {
   try {
     const v = localStorage.getItem('leela-theme')
-    return v === 'day' || v === 'night' ? v : 'auto'
+    return v === 'day' || v === 'night' ? v : 'dark'
   } catch {
-    return 'auto'
+    return 'dark'
   }
 }
 
@@ -21,20 +25,10 @@ export function setThemeMode(mode: ThemeMode, family: Family | null) {
   applyTheme(family)
 }
 
-/** Night mode follows the family's night window unless someone picks day or night. */
-export function applyTheme(family: Family | null) {
-  const mode = getThemeMode()
-  const night =
-    mode === 'night' ||
-    (mode === 'auto' &&
-      (family
-        ? inNightWindow(Date.now(), family)
-        : (() => {
-            const h = new Date().getHours()
-            return h >= 19 || h < 7
-          })()))
-  const theme = night ? 'night' : 'day'
+const BAR: Record<ThemeMode, string> = { dark: '#0e1120', night: '#0a0d1d', day: '#f1f3fa' }
+
+export function applyTheme(_family?: Family | null) {
+  const theme = getThemeMode()
   if (document.documentElement.dataset.theme !== theme) document.documentElement.dataset.theme = theme
-  const meta = document.querySelectorAll('meta[name="theme-color"]')
-  meta.forEach((m) => m.setAttribute('content', night ? '#0A0D1D' : '#F1F3FA'))
+  document.querySelectorAll('meta[name="theme-color"]').forEach((m) => m.setAttribute('content', BAR[theme]))
 }

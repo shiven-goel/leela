@@ -139,7 +139,7 @@ export function seed(variant: string) {
       { family_id: 'f1', user_id: 'u2', joined_at: new Date(now - 99 * 24 * H).toISOString(), last_seen_at: new Date(now - 10 * MIN).toISOString() },
     ],
     profiles: {
-      u1: { id: 'u1', display_name: 'Shiven', avatar_path: null, prefs: {} },
+      u1: { id: 'u1', display_name: 'Keshav', avatar_path: null, prefs: { admin: true } },
       u2: { id: 'u2', display_name: 'Mom', avatar_path: null, prefs: {} },
     },
     children: [child],

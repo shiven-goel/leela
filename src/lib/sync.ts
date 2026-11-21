@@ -60,8 +60,18 @@ export async function bootstrap(): Promise<void> {
   }
 
   if (!getState().catchUpSince) set({ catchUpSince: me.last_seen_at })
-  await loadFamily(me.family_id)
-  subscribe(me.family_id)
+  // With a recent copy on the phone, only what changed since is fetched: a second instead of the
+  // whole last few months. Without one (a new phone, or a long time away), load it all.
+  const recent = Boolean(snap?.family?.id === me.family_id && snap?.lastSyncAt && Date.now() - Date.parse(snap.lastSyncAt) < 7 * 86_400_000)
+  if (recent) {
+    subscribe(me.family_id)
+    await refresh()
+  } else {
+    set({ syncing: true })
+    await loadFamily(me.family_id)
+    set({ syncing: false })
+    subscribe(me.family_id)
+  }
   void flush()
   void touchLastSeen()
   startRefreshLoop()
@@ -248,25 +258,50 @@ async function fetchAll<T>(page: (from: number, to: number) => PromiseLike<{ dat
   return out
 }
 
+let refreshing: Promise<void> | null = null
+
 /** Pull everything changed since the last sync; catches anything realtime missed. */
-export async function refresh(): Promise<void> {
+export function refresh(): Promise<void> {
+  // One at a time: opening the app, coming back to it and the timer can all ask at once.
+  refreshing ??= (async () => {
+    getState().set({ syncing: true })
+    try {
+      // A phone that slept past its sign-in's hour gets a fresh one first, or every request fails.
+      await supabase.auth.getSession()
+      if (!(await refreshOnce())) {
+        await supabase.auth.refreshSession().catch(() => undefined)
+        await refreshOnce()
+      }
+    } finally {
+      getState().set({ syncing: false })
+      refreshing = null
+    }
+  })()
+  return refreshing
+}
+
+/** False when the sign-in was refused (expired), so the caller can renew it and try again. */
+async function refreshOnce(): Promise<boolean> {
   const s = getState()
-  if (!s.family || !s.userId) return
+  if (!s.family || !s.userId) return true
   const fid = s.family.id
   const since = s.lastSyncAt ? new Date(Date.parse(s.lastSyncAt) - 15_000).toISOString() : new Date(0).toISOString()
   const syncStart = new Date().toISOString()
 
   const { data: me, error: meErr } = await supabase.from('family_members').select('*').eq('user_id', s.userId).maybeSingle()
   if (meErr) {
-    if (isNetworkError(meErr)) s.set({ online: false })
-    return
+    if (isNetworkError(meErr)) {
+      s.set({ online: false })
+      return true
+    }
+    return !isAuthError(meErr)
   }
   if (!me) {
     // Removed from the family (or left on another device).
     teardown()
     s.set({ status: 'no_family', family: null, events: {}, segments: {}, children: [], members: [], removedNotice: true, allHistory: false })
     await db.cache.delete(SNAPSHOT_KEY(s.userId))
-    return
+    return true
   }
 
   const [changed, fam, mem, kids] = await Promise.all([
@@ -304,6 +339,20 @@ export async function refresh(): Promise<void> {
   }
   getState().set(patch)
   saveSnapshotSoon()
+  return true
+}
+
+function isAuthError(e: { message?: string; code?: string } | null | undefined): boolean {
+  const m = (e?.message ?? '').toLowerCase()
+  return e?.code === 'PGRST301' || e?.code === 'PGRST303' || m.includes('jwt') || m.includes('token')
+}
+
+/** Coming back to the app: catch up at once, and reconnect live updates if the phone dropped them. */
+export function resume() {
+  const fid = getState().family?.id
+  if (!fid) return
+  if (!channel || channel.state === 'closed' || channel.state === 'errored') subscribe(fid)
+  void refresh()
 }
 
 // ---------------------------------------------------------------------------
@@ -352,14 +401,26 @@ function subscribe(familyId: string) {
     })
     .subscribe((status) => {
       if (status === 'SUBSCRIBED') void refresh()
+      // Dropped (phone asleep, network change): try again shortly rather than wait.
+      if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') window.setTimeout(() => resume(), 3000)
     })
 }
 
 function startRefreshLoop() {
   if (refreshTimer) window.clearInterval(refreshTimer)
+  let ticks = 0
+  // Live updates usually bring changes within a second. As a safety net, check every 15 seconds
+  // while they're down, and every minute while they're up.
   refreshTimer = window.setInterval(() => {
-    if (document.visibilityState === 'visible') void refresh()
-  }, 60_000)
+    if (document.visibilityState !== 'visible') return
+    ticks++
+    const live = channel?.state === 'joined'
+    if (!live) {
+      if (channel?.state !== 'joining') resume()
+      else void refresh()
+    }
+    else if (ticks % 4 === 0) void refresh()
+  }, 15_000)
 }
 
 export function teardown() {
@@ -512,11 +573,14 @@ export function watchConnectivity() {
   window.addEventListener('offline', () => getState().set({ online: false }))
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') {
-      void refresh()
+      resume()
       void flush()
       void touchLastSeen()
     }
   })
+  // Android can bring an installed app back without a visibility change.
+  window.addEventListener('focus', () => resume())
+  window.addEventListener('pageshow', () => resume())
   useLeela.subscribe((s, prev) => {
     if (s.events !== prev.events || s.children !== prev.children) saveSnapshotSoon()
   })

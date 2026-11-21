@@ -5,7 +5,8 @@
 @import "@fontsource/mukta/latin-600.css";
 @import "@fontsource/mukta/latin-700.css";
 
-/* Leela tokens. Day: cool muslin and neel indigo. Night: deep navy with amber text. */
+/* LAPdiary tokens. Dark (the default): soft dark blue with clear ivory text, gentle around the
+   baby. Night: deep navy with amber text, dimmer still. Day: cool muslin and neel indigo. */
 :root,
 [data-theme="day"] {
   color-scheme: light;
@@ -43,6 +44,43 @@
   --c-growth: #2b8650;
   --c-health: #dd4630;
   --shadow-lift: 0 1px 0 rgba(27, 31, 59, 0.04), 0 8px 24px -12px rgba(27, 31, 59, 0.18);
+}
+
+[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #0e1120;
+  --card: #171b2e;
+  --card-2: #121527;
+  --ink: #eceae4;
+  --ink-2: #aeb2c8;
+  --ink-3: #7a8099;
+  --line: #272c45;
+  --brand: #d9a86c;
+  --brand-ink: #141625;
+  --scrim: rgba(0, 0, 0, 0.6);
+
+  --sleep: #8a80ea;      --sleep-soft: #1e1c46;
+  --feed: #d9a548;       --feed-soft: #2a2314;
+  --diaper: #40b5a0;     --diaper-soft: #112b29;
+  --pump: #dd6b95;       --pump-soft: #2d1626;
+  --health: #e2735f;     --health-soft: #2e1816;
+  --growth: #55ab76;     --growth-soft: #13271c;
+  --activity: #57a3dc;   --activity-soft: #112438;
+  --milestone: #d4a048;  --milestone-soft: #2b2111;
+  --note: #a48cdb;       --note-soft: #201a36;
+  --contraction: #c472ae; --contraction-soft: #2b1527;
+
+  --ring-day: #1f2238;
+  --ring-night: #171c3d;
+  --c-night: #8a80ea;
+  --c-nap: #5f58b3;
+  --c-feed: #c48d30;
+  --c-feed-2: #826126;
+  --c-diaper: #33a894;
+  --c-other: #727694;
+  --c-growth: #55ab76;
+  --c-health: #e2735f;
+  --shadow-lift: 0 0 0 1px rgba(236, 234, 228, 0.05);
 }
 
 [data-theme="night"] {

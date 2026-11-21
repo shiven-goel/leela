@@ -1,8 +1,9 @@
-import { ClockCounterClockwise, Copy, Crown, DownloadSimple, FileArrowUp, PencilSimple, Plus, ShareNetwork, X } from '@phosphor-icons/react'
+import { BookOpenText, ClockCounterClockwise, Copy, Crown, DownloadSimple, FileArrowUp, FileText, PencilSimple, Plus, ShareNetwork, Syringe, X } from '@phosphor-icons/react'
 import { useState } from 'react'
 import { ActivitySheet } from '../components/ActivitySheet'
 import { AlertSettings } from '../components/AlertSettings'
 import { ChildSheet } from '../components/ChildSheet'
+import { ClockTimeField } from '../components/TimeField'
 import { Sheet } from '../components/Sheet'
 import { Button, Choices, TextInput } from '../components/ui'
 import { rpc, saveDisplayName, saveFamilySettings, savePrefs } from '../lib/actions'
@@ -57,10 +58,10 @@ export function FamilyScreen() {
   const lastOne = members.length <= 1
 
   const share = async () => {
-    const text = `Join our family on Leela to log the baby’s day together. Our family code is ${family.code}.\n${window.location.origin}${window.location.pathname}`
+    const text = `Join our family on LAPdiary to log the baby’s day together. Our family code is ${family.code}.\n${window.location.origin}${window.location.pathname}`
     if (navigator.share) {
       try {
-        await navigator.share({ title: 'Join our family on Leela', text })
+        await navigator.share({ title: 'Join our family on LAPdiary', text })
         return
       } catch {
         /* cancelled */
@@ -101,13 +102,33 @@ export function FamilyScreen() {
   return (
     <div className="mx-auto max-w-[560px] px-5 pb-32">
       <header className="safe-top pb-4">
-        <h1 className="font-display text-[30px] font-extrabold leading-tight">{family.name || 'Family'}</h1>
+        <h1 className="font-display text-[30px] font-extrabold leading-tight">Settings</h1>
         <p className="text-[15px] text-ink-2">
-          {members.length} of {MAX_FAMILY_MEMBERS} members
+          {family.name || 'Family'} · {members.length} of {MAX_FAMILY_MEMBERS} members
         </p>
+        <nav className="no-scrollbar -mx-5 mt-3 flex gap-2 overflow-x-auto px-5" aria-label="Jump to">
+          {[
+            ['set-family', 'Family'],
+            ['set-babies', 'Babies'],
+            ['set-alerts', 'Notifications'],
+            ['set-display', 'Display'],
+            ['set-reports', 'Reports'],
+            ['set-data', 'Your data'],
+            ['set-account', 'Account'],
+          ].map(([id, label]) => (
+            <button
+              key={id}
+              type="button"
+              onClick={() => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+              className="min-h-10 shrink-0 rounded-full bg-card px-4 text-[15px] font-semibold"
+            >
+              {label}
+            </button>
+          ))}
+        </nav>
       </header>
 
-      <section className="mb-6 rounded-[28px] bg-card p-5 shadow-lift" aria-labelledby="code-h">
+      <section id="set-family" className="mb-6 scroll-mt-4 rounded-[28px] bg-card p-5 shadow-lift" aria-labelledby="code-h">
         <h2 id="code-h" className="text-[15px] font-semibold text-ink-2">
           Family code
         </h2>
@@ -197,7 +218,7 @@ export function FamilyScreen() {
         </ul>
       </Section>
 
-      <Section title="Babies">
+      <Section id="set-babies" title="Babies">
         <ul className="divide-y divide-line">
           {children.map((c) => (
             <li key={c.id}>
@@ -216,11 +237,11 @@ export function FamilyScreen() {
         </Button>
       </Section>
 
-      <Section title="Notifications">
+      <Section id="set-alerts" title="Notifications">
         <AlertSettings />
       </Section>
 
-      <Section title="Units and display">
+      <Section id="set-display" title="Display and units">
         <div className="mb-4">
           <div className="mb-2 text-[15px] font-semibold text-ink-2">Length</div>
           <Choices
@@ -250,36 +271,36 @@ export function FamilyScreen() {
           <div className="mb-2 text-[15px] font-semibold text-ink-2">Theme</div>
           <Choices
             options={[
-              { id: 'auto', label: 'Automatic' },
-              { id: 'day', label: 'Day' },
-              { id: 'night', label: 'Night' },
+              { id: 'dark', label: 'Dark' },
+              { id: 'night', label: 'Warm night' },
+              { id: 'day', label: 'Light' },
             ]}
             value={theme}
             onChange={(v) => {
-              const mode = v ?? 'auto'
+              const mode = v ?? 'dark'
               setTheme(mode)
               setThemeMode(mode, family)
             }}
           />
-          <p className="mt-1.5 text-[14px] text-ink-2">Automatic switches to night colours during the night window.</p>
+          <p className="mt-1.5 text-[14px] text-ink-2">Dark is easy to read and gentle around the baby. Warm night is dimmer still, with amber text. Each phone keeps its own choice.</p>
         </div>
         <div className="grid grid-cols-2 gap-3">
-          <TextInput label="Night starts" type="time" value={family.night_start.slice(0, 5)} onChange={(e) => e.target.value && void saveFamilySettings({ night_start: e.target.value })} />
-          <TextInput label="Night ends" type="time" value={family.night_end.slice(0, 5)} onChange={(e) => e.target.value && void saveFamilySettings({ night_end: e.target.value })} />
+          <ClockTimeField label="Night starts" value={family.night_start.slice(0, 5)} onChange={(v) => void saveFamilySettings({ night_start: v })} />
+          <ClockTimeField label="Night ends" value={family.night_end.slice(0, 5)} onChange={(v) => void saveFamilySettings({ night_end: v })} />
         </div>
         <p className="-mt-3 text-[14px] text-ink-2">Sleep that starts in this window counts as night sleep.</p>
       </Section>
 
       <Section title="Past logs">
-        <p className="mb-3 text-[15px] text-ink-2">Bring in what you wrote before Leela, from a PDF, Word file, Google Doc, spreadsheet or WhatsApp chat. You check everything before it’s saved, and any import can be undone.</p>
+        <p className="mb-3 text-[15px] text-ink-2">Bring in what you wrote before LAPdiary, from a PDF, Word file, Google Doc, spreadsheet or WhatsApp chat. You check everything before it’s saved, and any import can be undone.</p>
         <Button variant="secondary" size="md" className="w-full" onClick={() => useLeela.getState().set({ overlay: { kind: 'import' } })}>
           <FileArrowUp size={18} weight="bold" aria-hidden="true" /> Bring in past logs
         </Button>
       </Section>
 
-      <Section title="Words Leela has learned">
+      <Section title="Words LAPdiary has learned">
         {Object.keys(prefs.vocab ?? {}).length === 0 ? (
-          <p className="text-[15px] text-ink-2">When Leela meets shorthand it doesn’t know, it asks you once and remembers. Your words show up here.</p>
+          <p className="text-[15px] text-ink-2">When LAPdiary meets shorthand it doesn’t know, it asks you once and remembers. Your words show up here.</p>
         ) : (
           <ul className="divide-y divide-line">
             {Object.entries(prefs.vocab ?? {})
@@ -307,9 +328,24 @@ export function FamilyScreen() {
         )}
       </Section>
 
-      <Section title="Your data">
+      <Section id="set-reports" title="Reports">
+        <p className="mb-3 text-[15px] text-ink-2">A one-page summary of sleep, feeds, nappies and medicines to share with the doctor.</p>
+        <div className="flex flex-col gap-2">
+          <Button variant="secondary" size="md" onClick={() => useLeela.getState().set({ overlay: { kind: 'report' } })}>
+            <FileText size={18} weight="bold" aria-hidden="true" /> Doctor report (PDF)
+          </Button>
+          <Button variant="secondary" size="md" onClick={() => useLeela.getState().set({ overlay: { kind: 'vaccines' } })}>
+            <Syringe size={18} weight="bold" aria-hidden="true" /> Vaccine schedule
+          </Button>
+          <Button variant="secondary" size="md" onClick={() => useLeela.getState().set({ overlay: { kind: 'book' } })}>
+            <BookOpenText size={18} weight="bold" aria-hidden="true" /> Diary book
+          </Button>
+        </div>
+      </Section>
+
+      <Section id="set-data" title="Your data">
         <p className="mb-3 text-[15px] text-ink-2">
-          Everything you log is saved on Leela’s server and kept for as long as your family uses Leela. Nothing expires. Deleted entries are hidden, not erased, and every change is recorded in the activity log.
+          Everything you log is saved on LAPdiary’s server and kept for as long as your family uses LAPdiary. Nothing expires. Deleted entries are hidden, not erased, and every change is recorded in the activity log.
         </p>
         <div className="flex flex-col gap-2">
           <Button variant="secondary" size="md" onClick={() => setActivity(true)}>
@@ -324,7 +360,7 @@ export function FamilyScreen() {
         </div>
       </Section>
 
-      <Section title="Your account">
+      <Section id="set-account" title="Your account">
         <p className="mb-3 text-[15px] text-ink-2">Signed in as {email}</p>
         <div className="flex flex-col gap-2">
           <Button
@@ -344,6 +380,12 @@ export function FamilyScreen() {
           </Button>
         </div>
       </Section>
+
+      {prefs.admin === true && (
+        <button type="button" onClick={() => useLeela.getState().set({ overlay: { kind: 'admin' } })} className="mb-6 flex min-h-12 w-full items-center justify-center rounded-[22px] bg-card text-[16px] font-semibold text-ink-2">
+          Admin
+        </button>
+      )}
 
       <Sheet open={nameSheet} onClose={() => setNameSheet(false)} title="Your name" footer={
         <Button className="w-full" disabled={!nameDraft.trim()} onClick={() => { void saveDisplayName(nameDraft.trim()); setNameSheet(false) }}>Save</Button>
@@ -374,9 +416,9 @@ export function FamilyScreen() {
   )
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function Section({ id, title, children }: { id?: string; title: string; children: React.ReactNode }) {
   return (
-    <section className="mb-6 rounded-[28px] bg-card p-5" aria-label={title}>
+    <section id={id} className="mb-6 scroll-mt-4 rounded-[28px] bg-card p-5" aria-label={title}>
       <h2 className="mb-2 font-display text-[20px] font-bold">{title}</h2>
       {children}
     </section>

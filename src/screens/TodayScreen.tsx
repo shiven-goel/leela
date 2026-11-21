@@ -12,7 +12,7 @@ import { Timeline } from '../components/Timeline'
 import { ChildSheet } from '../components/ChildSheet'
 import { HealthCards } from '../components/HealthCards'
 import { useNow } from '../hooks/useNow'
-import { TYPES } from '../lib/config'
+import { showsFor } from '../lib/config'
 import { lastOf, sleepState, totalsFor } from '../lib/counting'
 import { eventDetail, eventTitle } from '../lib/describe'
 import { phase, sweetSpot } from '../lib/sweetspot'
@@ -30,6 +30,10 @@ export function TodayScreen() {
   const activeChildId = useLeela((s) => s.activeChildId)
   const userId = useLeela((s) => s.userId)
   const set = useLeela((s) => s.set)
+  const syncing = useLeela((s) => s.syncing)
+  const lastSyncAt = useLeela((s) => s.lastSyncAt)
+  // Opened after a while: until the catch-up lands, timers and "awake for" may be out of date.
+  const stale = syncing && (!lastSyncAt || now - Date.parse(lastSyncAt) > 2 * 60_000)
   const child = activeChild()
   const tz = family.timezone
 
@@ -44,7 +48,7 @@ export function TodayScreen() {
   const spot = useMemo(() => (child ? sweetSpot(events, child, family, now) : null), [events, child, family, now])
 
   const running = events
-    .filter((e) => e.timer_state && (e.child_id === child?.id || (TYPES[e.type].familyLevel && e.created_by === userId)))
+    .filter((e) => e.timer_state && showsFor(e, child?.id, userId))
     .sort((a, b) => a.started_at.localeCompare(b.started_at))
 
   if (!child || !spot) {
@@ -52,7 +56,7 @@ export function TodayScreen() {
       <div className="px-5 pt-6">
         <div className="rounded-[28px] bg-card p-6 text-center shadow-lift">
           <h2 className="font-display text-[26px] font-bold">Add your baby</h2>
-          <p className="mt-1 text-[16px] text-ink-2">Their name and birth date are all Leela needs to start.</p>
+          <p className="mt-1 text-[16px] text-ink-2">Their name and birth date are all LAPdiary needs to start.</p>
           <button type="button" onClick={() => setAddChild(true)} className="mt-5 h-14 w-full rounded-2xl bg-brand text-[17px] font-semibold text-brand-ink">
             Add baby
           </button>
@@ -64,7 +68,7 @@ export function TodayScreen() {
 
   const today0 = dayStart(now, tz).getTime()
   const todays = events
-    .filter((e) => (e.child_id === child.id || (TYPES[e.type].familyLevel && e.created_by === userId)) && Date.parse(e.started_at) >= today0)
+    .filter((e) => showsFor(e, child.id, userId) && Date.parse(e.started_at) >= today0)
     .sort((a, b) => b.started_at.localeCompare(a.started_at))
   const totals = totalsFor(events, segs, child.id, today0, now + 1, family, now)
   const state = sleepState(events, child.id, now)
@@ -96,7 +100,7 @@ export function TodayScreen() {
       <span className="text-[15px] font-semibold" style={{ color: state.asleep ? 'var(--sleep)' : 'var(--ink-2)' }}>
         {state.asleep ? 'Asleep' : state.since ? 'Awake' : child.name}
       </span>
-      <span className="num text-[44px] font-extrabold leading-[0.9]">
+      <span className={clsx('num text-[44px] font-extrabold leading-[0.9]', stale && 'opacity-40')}>
         {state.since ? durationText(now - state.since) : '–'}
       </span>
       <span className="mt-1.5 max-w-[150px] text-[13px] leading-snug text-ink-2">{ringLine}</span>
@@ -105,17 +109,20 @@ export function TodayScreen() {
 
   const ringLabel = `Last 24 hours for ${child.name}: ${durationText(totals.sleepMs)} of sleep today, ${totals.feeds} feeds, ${totals.diapers} diapers.`
 
+  const pumpSessions = todays.filter((e) => e.type === 'pump').length
+  const runningBottle = running.find((e) => e.type === 'bottle')
+  const runningPump = running.find((e) => e.type === 'pump')
+  const lastBath = events
+    .filter((e) => e.type === 'activity' && e.child_id === child.id && e.data.kind === 'bath')
+    .reduce<LeelaEvent | undefined>((best, e) => (!best || e.started_at > best.started_at ? e : best), undefined)
+
   const tiles: { id: string; label: string; sub: string; tone: string; icon: React.ReactNode; onClick: () => void; active?: boolean }[] = [
     {
       id: 'sleep',
       label: runningSleep ? 'Wake up' : 'Sleep',
-      sub: runningSleep
-        ? `Asleep ${durationText(now - Date.parse(runningSleep.started_at))}, tap to end`
-        : state.since && !state.asleep
-          ? `Woke ${agoText(state.since, now)}`
-          : 'Start or add a sleep',
+      sub: runningSleep ? `Asleep ${durationText(now - Date.parse(runningSleep.started_at))}` : state.since && !state.asleep ? `Woke ${agoText(state.since, now)}` : 'Start or add',
       tone: 'sleep',
-      icon: <TypeIcon type="sleep" size={30} />,
+      icon: <TypeIcon type="sleep" size={28} />,
       active: Boolean(runningSleep),
       // Opens the sleep screen; nothing starts or stops until its button is pressed.
       onClick: () => setSleepOpen(true),
@@ -123,26 +130,44 @@ export function TodayScreen() {
     {
       id: 'feed',
       label: 'Feed',
-      sub: lastFeed ? agoText(lastFeed.started_at, now) : 'Breast, bottle or solids',
+      sub: lastFeed ? agoText(lastFeed.started_at, now) : 'Breast or solids',
       tone: 'feed',
-      icon: <BottleIcon size={30} />,
-      onClick: () => setSheet({ type: lastFeed?.type === 'bottle' || lastFeed?.type === 'solids' ? lastFeed.type : 'nursing', group: ['nursing', 'bottle', 'solids'] }),
+      icon: <TypeIcon type="nursing" size={28} />,
+      onClick: () => setSheet({ type: lastFeed?.type === 'solids' ? 'solids' : 'nursing', group: ['nursing', 'bottle', 'solids'] }),
     },
     {
       id: 'diaper',
       label: 'Diaper',
-      sub: lastDiaper ? agoText(lastDiaper.started_at, now) : 'Wet, dirty or both',
+      sub: lastDiaper ? agoText(lastDiaper.started_at, now) : 'Wet or dirty',
       tone: 'diaper',
-      icon: <DiaperIcon size={30} />,
+      icon: <DiaperIcon size={28} />,
       onClick: () => setSheet({ type: 'diaper' }),
     },
     {
-      id: 'more',
-      label: 'More',
-      sub: 'Health, play, firsts',
-      tone: 'brand',
-      icon: <DotsThreeOutline size={30} weight="fill" />,
-      onClick: () => setMore(true),
+      id: 'bottle',
+      label: 'Bottle',
+      sub: runningBottle ? `Going ${durationText(now - Date.parse(runningBottle.started_at))}` : totals.bottleMl ? `${totals.bottleMl} ml today` : 'Start now',
+      tone: 'feed',
+      icon: <BottleIcon size={28} />,
+      active: Boolean(runningBottle),
+      onClick: () => setSheet(runningBottle ? { type: 'bottle', edit: runningBottle } : { type: 'bottle' }),
+    },
+    {
+      id: 'pump',
+      label: 'Pump',
+      sub: runningPump ? `Going ${durationText(now - Date.parse(runningPump.started_at))}` : totals.pumpMl ? `${totals.pumpMl} ml today` : 'Start now',
+      tone: 'pump',
+      icon: <TypeIcon type="pump" size={28} />,
+      active: Boolean(runningPump),
+      onClick: () => setSheet(runningPump ? { type: 'pump', edit: runningPump } : { type: 'pump' }),
+    },
+    {
+      id: 'bath',
+      label: 'Bath',
+      sub: lastBath ? agoText(lastBath.started_at, now) : 'Log a bath',
+      tone: 'activity',
+      icon: <TypeIcon type="activity" kind="bath" size={28} />,
+      onClick: () => setSheet({ type: 'activity', preset: { kind: 'bath' } }),
     },
   ]
 
@@ -156,6 +181,13 @@ export function TodayScreen() {
         onPick={(id) => set({ activeChildId: id })}
         onAdd={() => setAddChild(true)}
       />
+
+      {stale && (
+        <div className="mb-3 flex items-center gap-2 rounded-2xl bg-card px-4 py-2.5 text-[14px] text-ink-2" role="status">
+          <span className="pulse-dot h-2 w-2 shrink-0 rounded-full bg-brand" aria-hidden="true" />
+          Catching up with the family’s latest entries…
+        </div>
+      )}
 
       <CatchUp events={events} now={now} />
 
@@ -171,7 +203,12 @@ export function TodayScreen() {
       {running.length > 0 && (
         <div className="mt-2 flex flex-col gap-3">
           {running.map((e) => (
-            <TimerCard key={e.id} event={e} onOpen={(ev) => (ev.type === 'sleep' ? setSleepOpen(true) : setSheet({ type: ev.type, edit: ev }))} />
+            <TimerCard
+              key={e.id}
+              event={e}
+              onOpen={(ev) => (ev.type === 'sleep' ? setSleepOpen(true) : setSheet({ type: ev.type, edit: ev }))}
+              onStopped={(ev) => setSheet({ type: ev.type, edit: ev })}
+            />
           ))}
         </div>
       )}
@@ -186,28 +223,35 @@ export function TodayScreen() {
         onGiveDose={(last) => setSheet({ type: 'medicine', preset: { name: last.data.name, dose: last.data.dose, unit: last.data.unit, every_h: last.data.every_h ?? null } })}
       />
 
-      <div className="mt-4 grid grid-cols-2 gap-3">
+      <div className="mt-4 grid grid-cols-3 gap-2.5">
         {tiles.map((t) => (
           <button
             key={t.id}
             type="button"
             onClick={t.onClick}
-            className={clsx('flex min-h-[96px] items-start gap-3 rounded-[26px] p-4 text-left active:scale-[0.98]', t.active && 'ring-2')}
+            className={clsx('flex min-h-[92px] flex-col items-start justify-between gap-1 rounded-[22px] p-3 text-left active:scale-[0.98]', t.active && 'ring-2')}
             style={{
-              background: t.tone === 'brand' ? 'var(--card)' : `var(--${t.tone}-soft)`,
+              background: `var(--${t.tone}-soft)`,
               ...(t.active ? { ['--tw-ring-color' as string]: `var(--${t.tone})` } : {}),
             }}
           >
-            <span className="mt-0.5 shrink-0" style={{ color: t.tone === 'brand' ? 'var(--ink-2)' : `var(--${t.tone})` }}>
+            <span className="shrink-0" style={{ color: `var(--${t.tone})` }}>
               {t.icon}
             </span>
             <span className="min-w-0">
-              <span className="block font-display text-[21px] font-bold leading-tight">{t.label}</span>
-              <span className="block text-[13px] leading-snug text-ink-2">{t.sub}</span>
+              <span className="block font-display text-[19px] font-bold leading-tight">{t.label}</span>
+              <span className="block truncate text-[12.5px] leading-snug text-ink-2">{t.sub}</span>
             </span>
           </button>
         ))}
       </div>
+      <button
+        type="button"
+        onClick={() => setMore(true)}
+        className="mt-2.5 flex min-h-12 w-full items-center justify-center gap-2 rounded-[18px] bg-card text-[16px] font-semibold text-ink-2"
+      >
+        <DotsThreeOutline size={22} weight="fill" aria-hidden="true" /> More: health, play, firsts, notes
+      </button>
 
       <section className="mt-7" aria-labelledby="today-h">
         <div className="mb-3 flex items-end justify-between">
@@ -223,7 +267,7 @@ export function TodayScreen() {
             </button>
           </span>
         </div>
-        <dl className="mb-4 grid grid-cols-3 gap-2">
+        <dl className="mb-4 grid grid-cols-2 gap-2">
           <Stat label="Sleep" value={durationText(totals.sleepMs)} tone="sleep" detail={`${totals.naps} ${totals.naps === 1 ? 'nap' : 'naps'}`} />
           <Stat
             label="Feeds"
@@ -232,6 +276,7 @@ export function TodayScreen() {
             detail={totals.bottleMl ? `${totals.bottleMl} ml bottle` : `${Math.round((totals.nursingLeftS + totals.nursingRightS + totals.nursingOtherS) / 60)} min breast`}
           />
           <Stat label="Diapers" value={String(totals.diapers)} tone="diaper" detail={`${totals.wet} wet, ${totals.dirty} dirty`} />
+          <Stat label="Pumped" value={`${totals.pumpMl} ml`} tone="pump" detail={pumpSessions ? `${pumpSessions} ${pumpSessions === 1 ? 'session' : 'sessions'}` : 'None yet'} />
         </dl>
         <Timeline
           events={todays}

@@ -99,10 +99,10 @@ export function OnboardingScreen() {
   }
 
   const shareCode = async () => {
-    const text = `Join our family on Leela to log the baby’s day together. Our family code is ${newCode}.\n${window.location.origin}${window.location.pathname}`
+    const text = `Join our family on LAPdiary to log the baby’s day together. Our family code is ${newCode}.\n${window.location.origin}${window.location.pathname}`
     if (navigator.share) {
       try {
-        await navigator.share({ title: 'Join our family on Leela', text })
+        await navigator.share({ title: 'Join our family on LAPdiary', text })
         return
       } catch {
         /* cancelled */
@@ -209,9 +209,9 @@ export function OnboardingScreen() {
             <Copy size={20} weight="bold" aria-hidden="true" /> Copy code
           </Button>
           <Button variant="ghost" className="mt-4 w-full" onClick={() => useLeela.getState().set({ onboarding: false, tab: 'today' })}>
-            Go to Leela
+            Go to LAPdiary
           </Button>
-          <p className="mt-2 text-center text-[14px] text-ink-3">The code is always in the Family tab, and the owner can reset it.</p>
+          <p className="mt-2 text-center text-[14px] text-ink-3">The code is always in the Settings tab, and the owner can reset it.</p>
         </>
       )}
 

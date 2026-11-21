@@ -56,7 +56,7 @@ export function ChildSheet({ open, onClose, child }: { open: boolean; onClose: (
         </button>
         {early && (
           <div className="mt-3">
-            <TextInput label="Due date" type="date" value={due} onChange={(e) => setDue(e.target.value)} hint="Leela uses corrected age for nap times and growth until age 2." />
+            <TextInput label="Due date" type="date" value={due} onChange={(e) => setDue(e.target.value)} hint="LAPdiary uses corrected age for nap times and growth until age 2." />
           </div>
         )}
       </div>

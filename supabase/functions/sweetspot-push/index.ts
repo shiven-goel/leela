@@ -233,7 +233,7 @@ async function others(admin: Db, vapid: Vapid, now: number, subs: Sub[], member:
         if (!want(sub).medicine) continue
         await send(sub, kid, `med/${m.eventId}`, {
           title: `${kid.name}’s next ${m.name} is due`,
-          body: `Last given ${clockText(m.lastAt, tz)}${m.dose ? ` (${m.dose})` : ''}, ${m.everyH} hours ago. Log it in Leela when it’s given.`,
+          body: `Last given ${clockText(m.lastAt, tz)}${m.dose ? ` (${m.dose})` : ''}, ${m.everyH} hours ago. Log it in LAPdiary when it’s given.`,
           tag: `medicine-${kid.id}-${m.name.toLowerCase()}`,
           open: 'today',
         })
@@ -307,7 +307,7 @@ Deno.serve(async (req) => {
     if (!subs?.length) return reply({ error: 'no_phone' }, 404)
     const statuses = []
     for (const sub of subs as Sub[]) {
-      statuses.push(await deliver(admin, sub, { title: 'Leela notifications are on', body: 'This is how Leela’s notifications will look on this phone.', tag: 'leela-test', url: appUrl(sub) }, cfg.vapid))
+      statuses.push(await deliver(admin, sub, { title: 'LAPdiary notifications are on', body: 'This is how LAPdiary’s notifications will look on this phone.', tag: 'leela-test', url: appUrl(sub) }, cfg.vapid))
     }
     return reply({ ok: statuses.some((s) => s >= 200 && s < 300), statuses })
   }

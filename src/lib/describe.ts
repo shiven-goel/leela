@@ -1,6 +1,6 @@
 import { ACTIVITY_KINDS, MILESTONE_KINDS, SLEEP_PLACES, TEMP_METHODS, TYPES } from './config'
 import { nursingSeconds, sleepKind } from './counting'
-import { durationText } from './time'
+import { durationText, fmtTime } from './time'
 import type { Family, LeelaEvent, Prefs, TimerSegment } from './types'
 import { fmtLength, fmtTemp, fmtWeight } from './units'
 
@@ -26,21 +26,52 @@ function timedLength(e: LeelaEvent): boolean {
   return !e.timer_state && Boolean(e.ended_at) && Date.parse(e.ended_at!) - Date.parse(e.started_at) >= 60_000
 }
 
+/** "35 min", "1 h 20 min". */
+export function lengthText(ms: number): string {
+  const total = Math.max(0, Math.round(ms / 60_000))
+  const h = Math.floor(total / 60)
+  const m = total % 60
+  return h ? (m ? `${h} h ${m} min` : `${h} h`) : `${m} min`
+}
+
+/**
+ * How long and from when to when, for entries that last a while: "35 min · 8:45 – 9:20 AM", or
+ * "12 min so far · since 8:45 AM" while a timer runs. Null for moments (a diaper, a medicine).
+ */
+export function timeSpanText(e: LeelaEvent, segments: TimerSegment[], now: number, tz: string): string | null {
+  if (e.type === 'contraction' || e.type === 'note') return null
+  const start = Date.parse(e.started_at)
+  if (e.timer_state) return `${lengthText(now - start)} so far · since ${fmtTime(start, tz)}`
+  let end = e.ended_at ? Date.parse(e.ended_at) : null
+  if (end === null && e.type === 'nursing') {
+    const s = nursingSeconds(e, segments, now)
+    const secs = s.left + s.right || (typeof e.data.total_s === 'number' ? e.data.total_s : 0)
+    if (secs > 0) end = start + secs * 1000
+  }
+  if (end === null || end - start < 60_000) return null
+  const a = fmtTime(start, tz)
+  const b = fmtTime(end, tz)
+  const range = a.slice(-2) === b.slice(-2) ? `${a.slice(0, -3)} – ${b}` : `${a} – ${b}`
+  return `${lengthText(end - start)} · ${range}`
+}
+
 export function eventDetail(
   e: LeelaEvent,
   segments: TimerSegment[],
   prefs: Prefs,
   now: number,
+  opts: { noLength?: boolean } = {},
 ): string {
   const d = e.data
   const dur = () => {
+    if (opts.noLength) return ''
     const end = e.ended_at ? Date.parse(e.ended_at) : now
     return durationText(end - Date.parse(e.started_at))
   }
   const parts: string[] = []
   switch (e.type) {
     case 'sleep': {
-      parts.push(e.timer_state ? `Asleep for ${dur()}` : dur())
+      if (!opts.noLength) parts.push(e.timer_state ? `Asleep for ${dur()}` : dur())
       const place = SLEEP_PLACES.find((p) => p.id === d.place)
       if (place) parts.push(place.label.toLowerCase())
       break
@@ -65,7 +96,7 @@ export function eventDetail(
       if (timedLength(e)) parts.push(dur())
       break
     case 'pump': {
-      if (e.timer_state) parts.push(`Pumping for ${dur()}`)
+      if (e.timer_state && !opts.noLength) parts.push(`Pumping for ${dur()}`)
       const total = d.total_ml ?? ((d.left_ml ?? 0) + (d.right_ml ?? 0) || undefined)
       if (d.left_ml || d.right_ml) parts.push(`left ${d.left_ml ?? 0} ml, right ${d.right_ml ?? 0} ml`)
       else if (total) parts.push(`${total} ml`)
@@ -106,7 +137,7 @@ export function eventDetail(
       if (d.tags?.length) parts.push(d.tags.join(', '))
       break
     case 'activity':
-      if (e.timer_state) parts.push(`Going for ${dur()}`)
+      if (e.timer_state && !opts.noLength) parts.push(`Going for ${dur()}`)
       else if (e.ended_at) parts.push(dur())
       break
     case 'contraction':

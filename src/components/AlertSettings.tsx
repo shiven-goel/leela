@@ -6,9 +6,9 @@ import { myPrefs, useLeela } from '../lib/store'
 import { Button, Choices, Toggle } from './ui'
 
 export const SUPPORT_TEXT = {
-  'ios-install': 'On iPhone and iPad, notifications work once Leela is on your Home Screen: tap Share, then Add to Home Screen, and open Leela from there.',
-  unsupported: 'This browser can’t show notifications. Chrome, Edge, Firefox or Leela on an iPhone Home Screen can.',
-  denied: 'Notifications are blocked for Leela. Allow them in the browser’s site settings (or the phone’s Settings › Notifications), then turn them on again.',
+  'ios-install': 'On iPhone and iPad, notifications work once LAPdiary is on your Home Screen: tap Share, then Add to Home Screen, and open LAPdiary from there.',
+  unsupported: 'This browser can’t show notifications. Chrome, Edge, Firefox or LAPdiary on an iPhone Home Screen can.',
+  denied: 'Notifications are blocked for LAPdiary. Allow them in the browser’s site settings (or the phone’s Settings › Notifications), then turn them on again.',
 } as const
 
 /** This person's notification choices (the same on all their phones). */
@@ -80,7 +80,7 @@ export function AlertSettings() {
     <div>
       <Toggle label="Notifications on this phone" checked={on} onChange={(v) => void turn(v)} />
       {support !== 'ok' && <p className="mt-2 rounded-2xl bg-[var(--feed-soft)] px-4 py-3 text-[14px] leading-snug">{SUPPORT_TEXT[support]}</p>}
-      {!on && support === 'ok' && <p className="mt-2 text-[14px] text-ink-2">Everyone turns them on on their own phone. Leela can notify you even when it’s closed.</p>}
+      {!on && support === 'ok' && <p className="mt-2 text-[14px] text-ink-2">Everyone turns them on on their own phone. LAPdiary can notify you even when it’s closed.</p>}
       {on && (
         <div className="mt-3 space-y-3">
           <Toggle label="Sweet spot (naps and bedtime)" checked={a.sweetspot} onChange={(v) => void saveAlerts({ sweetspot: v })} tone="sleep" />

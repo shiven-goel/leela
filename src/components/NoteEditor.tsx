@@ -165,7 +165,7 @@ export function NoteEditor({ open, noteId, onClose }: { open: boolean; noteId?: 
         className="mb-5 w-full resize-none rounded-[22px] border border-line bg-card px-4 py-4 text-[18px] leading-[1.6] outline-none placeholder:text-ink-3 focus:border-[var(--note)]"
       />
       <PhotoPicker paths={photos} onChange={setPhotos} max={30} />
-      <p className="text-[14px] text-ink-3">Notes and their photos go into {child.name}’s diary and the printable diary book. If you mention a feed, a medicine or a first, Leela offers to log it too.</p>
+      <p className="text-[14px] text-ink-3">Notes and their photos go into {child.name}’s diary and the printable diary book. If you mention a feed, a medicine or a first, LAPdiary offers to log it too.</p>
       {error && (
         <p role="alert" className="mt-4 rounded-2xl bg-[var(--health-soft)] px-4 py-3 text-[15px] text-[var(--health)]">
           {error}
@@ -227,8 +227,8 @@ export function NoteSuggestions({ noteId, childId, body, at, onDone }: { noteId:
     >
       <p className="mb-3 text-[15px] text-ink-2">
         {drafts.length
-          ? 'Leela spotted these in your note. Untick anything that’s wrong.'
-          : 'Your note uses a word Leela doesn’t know yet. Tell it once and it remembers, on every phone in the family.'}
+          ? 'LAPdiary spotted these in your note. Untick anything that’s wrong.'
+          : 'Your note uses a word LAPdiary doesn’t know yet. Tell it once and it remembers, on every phone in the family.'}
       </p>
       <ul className="mb-4 divide-y divide-line">
         {drafts.map((d) => {

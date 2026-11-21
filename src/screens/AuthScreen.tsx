@@ -26,7 +26,7 @@ export function AuthScreen() {
     e.preventDefault()
     setError(null)
     if (!backendConfigured) {
-      setError('Leela isn’t connected to its database yet.')
+      setError('LAPdiary isn’t connected to its database yet.')
       return
     }
     setBusy(true)
@@ -63,7 +63,7 @@ export function AuthScreen() {
     <main className="safe-top mx-auto flex min-h-dvh max-w-[480px] flex-col px-6 pb-10">
       <div className="flex flex-1 flex-col justify-center pt-8">
         <LeelaMark className="h-16 w-16" />
-        <h1 className="mt-5 font-display text-[56px] font-extrabold leading-[0.9] tracking-tight">Leela</h1>
+        <h1 className="mt-5 font-display text-[56px] font-extrabold leading-[0.9] tracking-tight">LAPdiary</h1>
         <p className="mt-3 max-w-[22ch] text-[19px] leading-snug text-ink-2">Your baby’s day, shared by the whole family.</p>
       </div>
 

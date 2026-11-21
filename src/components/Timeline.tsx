@@ -1,5 +1,5 @@
 import { TYPES, toneSoft, toneVar } from '../lib/config'
-import { eventDetail, eventTitle } from '../lib/describe'
+import { eventDetail, eventTitle, timeSpanText } from '../lib/describe'
 import { loggedBy, myPrefs, useLeela } from '../lib/store'
 import { fmtTime } from '../lib/time'
 import type { LeelaEvent } from '../lib/types'
@@ -32,7 +32,8 @@ export function Timeline({
       {events.map((e) => {
         const meta = TYPES[e.type]
         const by = loggedBy(e)
-        const detail = eventDetail(e, segs, prefs, now)
+        const span = family ? timeSpanText(e, segs, now, family.timezone) : null
+        const detail = eventDetail(e, segs, prefs, now, { noLength: Boolean(span) })
         return (
           <li key={e.id}>
             <button
@@ -56,6 +57,7 @@ export function Timeline({
                     <span className="pulse-dot h-2 w-2 shrink-0 rounded-full" style={{ background: toneVar(meta.tone) }} aria-label="In progress" />
                   )}
                 </span>
+                {span && <span className="num block truncate text-[14px] font-semibold text-ink">{span}</span>}
                 <span className="block truncate text-[14px] text-ink-2">
                   {detail ? `${detail}, ` : ''}by {by}
                   {e._local ? ' (sending)' : ''}

@@ -490,11 +490,7 @@ export function LogSheet({
       {/* ------------------------------------------------------------ BOTTLE */}
       {type === 'bottle' && (
         <>
-          {times({ start: 'Started', end: 'Ended' })}
-          <Field label="Amount">
-            <Stepper value={draft.data.amount_ml} onChange={(v) => setData({ amount_ml: v })} step={10} max={1000} unit="ml" label="amount" />
-          </Field>
-          <Field label="What was in it">
+          <Field label="What's in it">
             <Choices
               options={[
                 { id: 'breast', label: 'Breast milk' },
@@ -505,6 +501,19 @@ export function LogSheet({
               onChange={(v) => setData({ contents: v })}
               tone="feed"
             />
+          </Field>
+          {!edit && !running && (
+            <>
+              <Button tone="feed" className="mb-3 w-full" onClick={() => void startNow()}>
+                Start bottle now{fromText}
+              </Button>
+              {timerStartPicker}
+              {orPast('or log a past bottle')}
+            </>
+          )}
+          {times({ start: 'Started', end: 'Ended', verb: 'Fed for', still: 'Still feeding' })}
+          <Field label={runningEdit ? 'Amount drunk (set it when you stop)' : 'Amount'}>
+            <Stepper value={draft.data.amount_ml} onChange={(v) => setData({ amount_ml: v })} step={10} max={1000} unit="ml" label="amount" />
           </Field>
         </>
       )}
@@ -965,7 +974,7 @@ function MedicineFields({
           compact
         />
       </Field>
-      <p className="-mt-2 mb-5 text-[13px] text-ink-3">Leela records what was given. It never suggests doses.</p>
+      <p className="-mt-2 mb-5 text-[13px] text-ink-3">LAPdiary records what was given. It never suggests doses.</p>
     </>
   )
 }
@@ -1039,7 +1048,7 @@ function ContractionPanel({
           </ol>
         </div>
       )}
-      <p className="text-[14px] text-ink-2">Leela only times contractions. For when to go in, follow your doctor’s or midwife’s advice.</p>
+      <p className="text-[14px] text-ink-2">LAPdiary only times contractions. For when to go in, follow your doctor’s or midwife’s advice.</p>
     </>
   )
 }

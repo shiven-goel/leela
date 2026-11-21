@@ -1,5 +1,5 @@
 import clsx from 'clsx'
-import { BookOpenText, ClockCounterClockwise, House, NotePencil, UsersThree } from '@phosphor-icons/react'
+import { BookOpenText, ClockCounterClockwise, GearSix, House, NotePencil } from '@phosphor-icons/react'
 import { type Tab, useLeela } from '../lib/store'
 
 const TABS: { id: Tab; label: string; Icon: typeof House }[] = [
@@ -7,7 +7,7 @@ const TABS: { id: Tab; label: string; Icon: typeof House }[] = [
   { id: 'history', label: 'History', Icon: ClockCounterClockwise },
   { id: 'notes', label: 'Notes', Icon: NotePencil },
   { id: 'diary', label: 'Diary', Icon: BookOpenText },
-  { id: 'family', label: 'Family', Icon: UsersThree },
+  { id: 'family', label: 'Settings', Icon: GearSix },
 ]
 
 export function TabBar() {

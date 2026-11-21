@@ -10,6 +10,7 @@ import { durationText, fmtTime } from '../lib/time'
 import { useLeela } from '../lib/store'
 import type { Child } from '../lib/types'
 import { BottleIcon } from './Icon'
+import { ClockTimeField } from './TimeField'
 import { Sheet } from './Sheet'
 import { Button, Choices, Field, Stepper, Toggle } from './ui'
 
@@ -48,8 +49,8 @@ export function SweetSpotCard({
               <p className="mt-1 font-display text-[21px] font-bold leading-tight">{big}</p>
               <p className="mt-1 text-[15px] text-ink-2">
                 {spot.status === 'needs-birthday'
-                  ? 'Sweet spot uses age to know how long babies usually stay awake. Add it in Family.'
-                  : `Leela predicts the best time for ${name}’s next nap and bedtime from when ${name} last woke up.`}
+                  ? 'Sweet spot uses age to know how long babies usually stay awake. Add it in Settings.'
+                  : `LAPdiary predicts the best time for ${name}’s next nap and bedtime from when ${name} last woke up.`}
               </p>
             </div>
             <CaretRight size={20} weight="bold" className="mt-1 shrink-0 text-ink-3" aria-hidden="true" />
@@ -262,7 +263,7 @@ export function SweetSpotSheet({ open, onClose, spot, child, now, tz }: { open: 
           />
         )}
         {!plan.length && !spot.feed && spot.status !== 'napping' && spot.status !== 'night' && (
-          <li className="px-4 py-3 text-[15px] text-ink-2">Log {name}’s sleeps and Leela will plan the day here.</li>
+          <li className="px-4 py-3 text-[15px] text-ink-2">Log {name}’s sleeps and LAPdiary will plan the day here.</li>
         )}
       </ul>
       {spot.status !== 'newborn' && g.daySleep[1] > 0 && (
@@ -280,7 +281,7 @@ export function SweetSpotSheet({ open, onClose, spot, child, now, tz }: { open: 
           At {g.label}, most babies are ready to sleep again {rangeText(g.wake[0], g.wake[1])} after waking, with {g.naps[0] === g.naps[1] ? napsWord(g.naps[0]) : `${g.naps[0]}–${g.naps[1]} naps`} a day. The window before bed is usually the longest.
         </p>
         <p>
-          Once about five days of sleep are logged, Leela leans towards {name}’s own rhythm, staying within the normal range for that age. Everyone in the family sees the same prediction.
+          Once about five days of sleep are logged, LAPdiary leans towards {name}’s own rhythm, staying within the normal range for that age. Everyone in the family sees the same prediction.
         </p>
         <p>
           It’s a guide, like a weather forecast. Watch for sleepy cues too: yawning, rubbing eyes, staring away. Start winding down about 30 minutes before the window.
@@ -304,7 +305,7 @@ export function SweetSpotSheet({ open, onClose, spot, child, now, tz }: { open: 
           </dl>
           {spot.basis === 'logs' && [p.first, p.middle, p.last].some((m) => m !== undefined && (m < g.wake[0] * 0.85 || m > g.wake[1] * 1.15)) && (
             <p className="-mt-3 mb-6 rounded-2xl bg-[var(--feed-soft)] px-4 py-3 text-[14px] leading-snug">
-              Some of {name}’s wake windows are outside the usual {rangeText(g.wake[0], g.wake[1])} for {g.label}, so Leela keeps its predictions within that range. To follow {name}’s own times, set a bedtime or your own wake windows below.
+              Some of {name}’s wake windows are outside the usual {rangeText(g.wake[0], g.wake[1])} for {g.label}, so LAPdiary keeps its predictions within that range. To follow {name}’s own times, set a bedtime or your own wake windows below.
             </p>
           )}
         </>
@@ -343,13 +344,9 @@ export function SweetSpotSheet({ open, onClose, spot, child, now, tz }: { open: 
           />
         </div>
         {draft.bedtime && (
-          <input
-            type="time"
-            aria-label="Bedtime"
-            value={draft.bedtime}
-            onChange={(e) => /^\d{2}:\d{2}$/.test(e.target.value) && change({ bedtime: e.target.value })}
-            className="mt-2 h-13 w-full rounded-2xl border border-line bg-card-2 px-4 text-[17px] outline-none focus:border-brand"
-          />
+          <div className="mt-2">
+            <ClockTimeField label="Bedtime" value={draft.bedtime} onChange={(v) => change({ bedtime: v })} />
+          </div>
         )}
       </Field>
       <Field label="Wake windows" hint={draft.adjust ? `Every wake window is ${Math.abs(draft.adjust)} min ${draft.adjust > 0 ? 'longer' : 'shorter'} than predicted.` : 'Make every wake window a little longer or shorter, in minutes.'}>
@@ -462,7 +459,7 @@ function Reminders({ name }: { name: string }) {
       if (r.ok) {
         setLead(next)
         if (!alerts.sweetspot) await saveAlerts({ sweetspot: true })
-        setNote('Reminders are on for this phone. Choose other notifications in Family.')
+        setNote('Reminders are on for this phone. Choose other notifications in Settings.')
       } else if (r.reason === 'failed') setNote(`Couldn’t turn reminders on${r.detail ? `: ${r.detail}` : ''}.`)
     } else {
       if (!alerts.sweetspot) await saveAlerts({ sweetspot: true })
@@ -498,7 +495,7 @@ function Reminders({ name }: { name: string }) {
       />
       <p className="mt-2 text-[14px] text-ink-2">
         {shown === null
-          ? `A notification before ${name}’s nap and bedtime sweet spots, even when Leela is closed. Everyone turns it on on their own phone.`
+          ? `A notification before ${name}’s nap and bedtime sweet spots, even when LAPdiary is closed. Everyone turns it on on their own phone.`
           : `On: ${shown} minutes before each nap and bedtime sweet spot, for every baby in the family.`}
       </p>
       {support !== 'ok' && <p className="mt-2 rounded-2xl bg-[var(--feed-soft)] px-4 py-3 text-[14px] leading-snug">{SUPPORT_TEXT[support]}</p>}

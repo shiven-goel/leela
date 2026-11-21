@@ -44,7 +44,7 @@ export async function exportFamilyData(): Promise<ExportFiles> {
 
   const exportedAt = new Date().toISOString()
   const payload = {
-    about: 'Everything your family has stored in Leela, exported from the server. Entries marked deleted_at were deleted in the app and are kept for history.',
+    about: 'Everything your family has stored in LAPdiary, exported from the server. Entries marked deleted_at were deleted in the app and are kept for history.',
     exported_at: exportedAt,
     family: family.data,
     members: members.data ?? [],

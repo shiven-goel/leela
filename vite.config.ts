@@ -8,6 +8,8 @@ const base = process.env.LEELA_BASE ?? '/'
 
 export default defineConfig({
   base,
+  // Shown in the admin panel, so it's clear which version a phone is running.
+  define: { __APP_VERSION__: JSON.stringify((process.env.GITHUB_SHA ?? 'dev').slice(0, 7)) },
   plugins: [
     react(),
     tailwindcss(),
@@ -15,11 +17,12 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.svg', 'apple-touch-icon.png'],
       manifest: {
-        name: 'Leela',
-        short_name: 'Leela',
+        name: 'LAPdiary',
+        short_name: 'LAPdiary',
         description: 'Your baby’s day, shared by the whole family.',
-        theme_color: '#3B2FB0',
-        background_color: '#F1F3FA',
+        // Dark splash screen while the app opens: no white flash.
+        theme_color: '#0e1120',
+        background_color: '#0e1120',
         display: 'standalone',
         orientation: 'portrait',
         start_url: base,

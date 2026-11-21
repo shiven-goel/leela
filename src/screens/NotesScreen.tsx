@@ -65,7 +65,7 @@ export function NotesScreen() {
         <div className="rounded-[28px] bg-card px-6 py-8 text-center">
           <p className="font-display text-[20px] font-bold">Nothing written yet</p>
           <p className="mx-auto mt-1 max-w-[34ch] text-[15px] text-ink-2">
-            Write down the first smile, the funny faces, the long nights, with photos. Leela keeps them for the diary book, and logs anything worth logging.
+            Write down the first smile, the funny faces, the long nights, with photos. LAPdiary keeps them for the diary book, and logs anything worth logging.
           </p>
         </div>
       ) : shown.length === 0 ? (

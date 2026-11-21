@@ -41,7 +41,7 @@ export function ActivitySheet({ open, onClose }: { open: boolean; onClose: () =>
   let lastDay = ''
   return (
     <Sheet open={open} onClose={onClose} title="Activity">
-      <p className="mb-4 text-[15px] text-ink-2">Every change saved to Leela’s server, by whom and when. Nothing here is ever erased.</p>
+      <p className="mb-4 text-[15px] text-ink-2">Every change saved to LAPdiary’s server, by whom and when. Nothing here is ever erased.</p>
       {error && <p className="mb-3 rounded-2xl bg-[var(--health-soft)] px-4 py-3 text-[15px] text-[var(--health)]">{error}</p>}
       <ol>
         {rows.map(({ a, d }) => {

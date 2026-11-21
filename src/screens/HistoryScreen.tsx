@@ -9,7 +9,7 @@ import { marksBetween } from '../lib/charts'
 import { HistoryTrends } from './HistoryTrends'
 import { HistoryWeek } from './HistoryWeek'
 import { useNow } from '../hooks/useNow'
-import { TYPES } from '../lib/config'
+import { showsFor } from '../lib/config'
 import { totalsFor } from '../lib/counting'
 import { activeChild, useLeela } from '../lib/store'
 import { loadAllHistory } from '../lib/sync'
@@ -55,7 +55,7 @@ export function HistoryScreen() {
   const list = events
     .filter(
       (e) =>
-        (e.child_id === child.id || (TYPES[e.type].familyLevel && e.created_by === userId)) &&
+        showsFor(e, child.id, userId) &&
         ((Date.parse(e.started_at) >= day && Date.parse(e.started_at) < dayEnd) ||
           // A night sleep that started the evening before still shows on the morning it ended.
           (e.type === 'sleep' && Date.parse(e.started_at) < day && (e.ended_at ? Date.parse(e.ended_at) : now) > day)),
@@ -193,7 +193,8 @@ export function HistoryScreen() {
             sub={[totals.bottleMl ? `${totals.bottleMl} ml bottles` : '', nursingMin ? `${nursingMin} min breastfeeding` : ''].filter(Boolean).join(', ') || 'None logged'}
           />
           <Summary tone="diaper" label="Diapers" value={String(totals.diapers)} sub={`${totals.wet} wet, ${totals.dirty} dirty`} />
-          <Summary tone="feed" label="Solids" value={String(totals.solids)} sub={totals.pumpMl ? `${totals.pumpMl} ml pumped` : 'meals'} />
+          <Summary tone="feed" label="Solids" value={String(totals.solids)} sub={totals.solids === 1 ? 'meal' : 'meals'} />
+          <Summary tone="pump" label="Pumped" value={`${totals.pumpMl} ml`} sub={`${list.filter((e) => e.type === 'pump').length} sessions`} />
         </dl>
 
         {loadingOld && !allHistory ? (

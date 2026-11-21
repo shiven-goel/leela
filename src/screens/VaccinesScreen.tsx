@@ -59,7 +59,7 @@ export function VaccinesScreen({ open, onClose }: { open: boolean; onClose: () =
   return (
     <Overlay open={open} onClose={onClose} title={`${child.name}’s vaccines`}>
       {!child.birth_date ? (
-        <p className="rounded-3xl bg-card px-5 py-6 text-[16px]">Add {child.name}’s birth date on the Family tab and Leela will work out when each vaccine is due.</p>
+        <p className="rounded-3xl bg-card px-5 py-6 text-[16px]">Add {child.name}’s birth date on the Settings tab and LAPdiary will work out when each vaccine is due.</p>
       ) : (
         <>
           <p className="mb-4 text-[15px] leading-snug text-ink-2">
@@ -132,7 +132,7 @@ export function VaccinesScreen({ open, onClose }: { open: boolean; onClose: () =
             </section>
           )}
 
-          <p className="text-[13px] text-ink-3">Leela only keeps track. Which vaccines and when is always your doctor’s call.</p>
+          <p className="text-[13px] text-ink-3">LAPdiary only keeps track. Which vaccines and when is always your doctor’s call.</p>
         </>
       )}
 

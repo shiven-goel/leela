@@ -103,7 +103,7 @@ export function describeActivity(a: AuditEntry): { who: string; text: string } |
       if ('prefs' in diff) {
         const [before, after] = diff.prefs as [{ vocab?: Record<string, string> } | null, { vocab?: Record<string, string> } | null]
         const added = Object.entries(after?.vocab ?? {}).filter(([k, v]) => before?.vocab?.[k] !== v)
-        if (added.length) return { who, text: `taught Leela ${added.map(([k, v]) => `“${k}” = ${meaningById(v)?.label.toLowerCase() ?? v}`).join(', ')}` }
+        if (added.length) return { who, text: `taught LAPdiary ${added.map(([k, v]) => `“${k}” = ${meaningById(v)?.label.toLowerCase() ?? v}`).join(', ')}` }
         return { who, text: 'changed their settings' }
       }
       if (a.action === 'insert') return null

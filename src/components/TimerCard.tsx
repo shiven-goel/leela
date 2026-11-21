@@ -11,12 +11,15 @@ import { useNow } from '../hooks/useNow'
 import { TypeIcon } from './Icon'
 
 /** A live timer shared by the whole family: every phone shows the same time and anyone can stop it. */
-export function TimerCard({ event, onOpen }: { event: LeelaEvent; onOpen: (e: LeelaEvent) => void }) {
+export function TimerCard({ event, onOpen, onStopped }: { event: LeelaEvent; onOpen: (e: LeelaEvent) => void; onStopped?: (e: LeelaEvent) => void }) {
   const now = useNow(1000)
   const family = useLeela((s) => s.family)
   const segments = useLeela((s) => s.segments)
   useLeela((s) => s.userId)
   useLeela((s) => s.profiles)
+  const syncing = useLeela((s) => s.syncing)
+  const lastSyncAt = useLeela((s) => s.lastSyncAt)
+  const stale = syncing && (!lastSyncAt || now - Date.parse(lastSyncAt) > 2 * 60_000)
   const meta = TYPES[event.type]
   const tz = family?.timezone ?? 'UTC'
   const started = Date.parse(event.started_at)
@@ -51,17 +54,23 @@ export function TimerCard({ event, onOpen }: { event: LeelaEvent; onOpen: (e: Le
             <span className="block text-[15px] font-semibold" style={{ color: toneVar(meta.tone) }}>
               {title}
             </span>
-            <span className="num block text-[40px] font-extrabold leading-[0.95]" aria-live="off">
+            <span className={clsx('num block text-[40px] font-extrabold leading-[0.95]', stale && 'opacity-40')} aria-live="off">
               {clockText(elapsed)}
             </span>
             <span className="block truncate text-[13px] text-ink-2">
-              Started {fmtTime(started, tz)} by {by}
+              {stale ? 'Checking it’s still going…' : `Started ${fmtTime(started, tz)} by ${by}`}
             </span>
           </span>
         </button>
         <button
           type="button"
-          onClick={() => void stopTimer(event.id)}
+          onClick={() =>
+            void stopTimer(event.id).then(() => {
+              // Bottles and pumping: straight on to how much.
+              const done = useLeela.getState().events[event.id]
+              if (done && (event.type === 'bottle' || event.type === 'pump')) onStopped?.(done)
+            })
+          }
           className="grid h-16 w-16 shrink-0 place-items-center rounded-[22px] text-white active:scale-95"
           style={{ background: toneVar(meta.tone) }}
           aria-label={`Stop ${title.toLowerCase()}`}

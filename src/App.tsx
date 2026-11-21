@@ -16,6 +16,9 @@ import { NotesScreen } from './screens/NotesScreen'
 import { OnboardingScreen } from './screens/OnboardingScreen'
 import { TodayScreen } from './screens/TodayScreen'
 import { VaccinesScreen } from './screens/VaccinesScreen'
+import { ReportScreen } from './screens/ReportScreen'
+import { AdminScreen } from './screens/AdminScreen'
+import { myPrefs } from './lib/store'
 
 export function App() {
   const status = useLeela((s) => s.status)
@@ -55,7 +58,7 @@ export function App() {
   let screen: React.ReactNode
   if (status === 'loading') {
     screen = (
-      <div className="grid min-h-dvh place-items-center" aria-busy="true" aria-label="Loading Leela">
+      <div className="grid min-h-dvh place-items-center" aria-busy="true" aria-label="Loading LAPdiary">
         <LeelaMark className="h-16 w-16 animate-pulse" />
       </div>
     )
@@ -79,6 +82,8 @@ export function App() {
         <NoteEditor open={overlay?.kind === 'note'} noteId={overlay?.kind === 'note' ? overlay.id : undefined} onClose={closeOverlay} />
         <BookScreen open={overlay?.kind === 'book'} onClose={closeOverlay} />
         <VaccinesScreen open={overlay?.kind === 'vaccines'} onClose={closeOverlay} />
+        <ReportScreen open={overlay?.kind === 'report'} onClose={closeOverlay} />
+        {myPrefs().admin === true && <AdminScreen open={overlay?.kind === 'admin'} onClose={closeOverlay} />}
       </>
     )
   }

@@ -1,9 +1,10 @@
 import clsx from 'clsx'
 import { CalendarBlank, Clock } from '@phosphor-icons/react'
-import { type ReactNode, useId, useRef, useState } from 'react'
+import { type ReactNode, useEffect, useId, useRef, useState } from 'react'
 import { dayLabel, durationText, fmtTime } from '../lib/time'
 import { MIN, type Range, type When, addEnd, endAtTime, localParts, moveStart, shiftRange, whenText, withDate, withTime } from '../lib/timerange'
-import { Toggle } from './ui'
+import { Sheet } from './Sheet'
+import { Button, Toggle } from './ui'
 
 /**
  * A date or time button that opens the phone's own picker the moment it's tapped: the clock dial on
@@ -38,6 +39,43 @@ function PickerButton({
   tone?: string
 }) {
   const pointer = useRef('')
+  const [wheel, setWheel] = useState(false)
+  if (type === 'time') {
+    // Times use our own scroll wheels (like a phone's alarm clock) instead of the clock dial.
+    return (
+      <>
+        <button
+          type="button"
+          aria-label={label}
+          onClick={() => setWheel(true)}
+          className={clsx(
+            'relative flex min-w-0 items-center gap-2 overflow-hidden text-left',
+            chip ? 'min-h-11 shrink-0 rounded-full px-4 text-[15px] font-medium' : 'h-14 rounded-2xl px-3.5',
+            !pressed && 'bg-card-2 ring-1 ring-line',
+            className,
+          )}
+          style={pressed ? { background: `var(--${tone ?? 'brand'})`, color: tone && tone !== 'brand' ? '#fff' : 'var(--brand-ink)' } : undefined}
+        >
+          {icon}
+          <span aria-hidden="true" className={clsx('truncate', !chip && 'num text-[18px] font-semibold')}>
+            {display}
+          </span>
+        </button>
+        {wheel && (
+          <WheelTimeSheet
+            title={label}
+            value={value}
+            tone={tone}
+            onClose={() => setWheel(false)}
+            onPick={(v) => {
+              setWheel(false)
+              onPick(v)
+            }}
+          />
+        )}
+      </>
+    )
+  }
   return (
     <label
       className={clsx(
@@ -58,7 +96,6 @@ function PickerButton({
         value={value}
         min={min}
         max={max}
-        step={type === 'time' ? 60 : undefined}
         onPointerDown={(e) => {
           pointer.current = e.pointerType
         }}
@@ -357,6 +394,116 @@ export function QuickTime({
           onPick={(t) => onChange({ at: withTime(Date.now(), t, tz, Date.now()) })}
         />
       </div>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------- scroll wheels
+const ROW = 44
+const HOURS = Array.from({ length: 12 }, (_, i) => String(i + 1))
+const MINUTES = Array.from({ length: 60 }, (_, i) => String(i).padStart(2, '0'))
+const HALVES = ['AM', 'PM']
+
+/** One scrolling column that snaps to an item; the middle row is the chosen one. */
+function Wheel({ items, value, onChange, label, wide }: { items: string[]; value: string; onChange: (v: string) => void; label: string; wide?: boolean }) {
+  const ref = useRef<HTMLDivElement>(null)
+  const timer = useRef<number | null>(null)
+  useEffect(() => {
+    const i = Math.max(0, items.indexOf(value))
+    if (ref.current) ref.current.scrollTop = i * ROW
+    // Only when it opens: afterwards the wheel itself is the source of truth.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+  const settle = () => {
+    if (timer.current) window.clearTimeout(timer.current)
+    timer.current = window.setTimeout(() => {
+      const el = ref.current
+      if (!el) return
+      const i = Math.min(items.length - 1, Math.max(0, Math.round(el.scrollTop / ROW)))
+      if (items[i] !== value) onChange(items[i])
+    }, 90)
+  }
+  return (
+    <div className={clsx('relative', wide ? 'w-24' : 'w-20')}>
+      <div
+        ref={ref}
+        role="listbox"
+        aria-label={label}
+        onScroll={settle}
+        className="no-scrollbar relative h-[220px] snap-y snap-mandatory overflow-y-scroll overscroll-contain"
+        style={{ paddingTop: ROW * 2, paddingBottom: ROW * 2 }}
+      >
+        {items.map((it, i) => (
+          <button
+            key={it}
+            type="button"
+            role="option"
+            aria-selected={it === value}
+            onClick={() => ref.current?.scrollTo({ top: i * ROW, behavior: 'smooth' })}
+            className={clsx('num flex w-full snap-center items-center justify-center text-[24px]', it === value ? 'font-bold text-ink' : 'text-ink-3')}
+            style={{ height: ROW }}
+          >
+            {it}
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function WheelTimeSheet({ title, value, tone, onClose, onPick }: { title: string; value: string; tone?: string; onClose: () => void; onPick: (hhmm: string) => void }) {
+  const [h24, m0] = (value || '12:00').split(':').map(Number)
+  const [hour, setHour] = useState(String(((h24 + 11) % 12) + 1))
+  const [minute, setMinute] = useState(String(m0 || 0).padStart(2, '0'))
+  const [half, setHalf] = useState(h24 >= 12 ? 'PM' : 'AM')
+  const done = () => {
+    const h = (Number(hour) % 12) + (half === 'PM' ? 12 : 0)
+    onPick(`${String(h).padStart(2, '0')}:${minute}`)
+  }
+  return (
+    <Sheet
+      open
+      onClose={onClose}
+      title={title.replace(/ time$/, '')}
+      tone={tone}
+      footer={
+        <Button tone={tone && tone !== 'brand' ? tone : undefined} className="w-full" onClick={done}>
+          Set {hour}:{minute} {half}
+        </Button>
+      }
+    >
+      <div className="relative mx-auto flex w-fit items-center justify-center gap-1 rounded-3xl bg-card-2 px-3 ring-1 ring-line">
+        <div className="pointer-events-none absolute inset-x-2 top-1/2 h-11 -translate-y-1/2 rounded-2xl bg-card" aria-hidden="true" />
+        <div className="relative flex items-center gap-1">
+          <Wheel items={HOURS} value={hour} onChange={setHour} label="Hour" />
+          <span className="num text-[24px] font-bold text-ink-2" aria-hidden="true">
+            :
+          </span>
+          <Wheel items={MINUTES} value={minute} onChange={setMinute} label="Minutes" />
+          <Wheel items={HALVES} value={half} onChange={setHalf} label="AM or PM" wide />
+        </div>
+      </div>
+      <p className="mt-3 text-center text-[14px] text-ink-2">Scroll each wheel, or tap a number.</p>
+    </Sheet>
+  )
+}
+
+/** A labelled clock time ("HH:MM") picked on the scroll wheels, for settings like the night window. */
+export function ClockTimeField({ label, value, onChange }: { label: string; value: string; onChange: (hhmm: string) => void }) {
+  const [h, m] = value.split(':').map(Number)
+  const shown = `${((h + 11) % 12) + 1}:${String(m).padStart(2, '0')} ${h >= 12 ? 'PM' : 'AM'}`
+  return (
+    <div className="mb-5">
+      <div className="mb-2 text-[15px] font-semibold text-ink-2">{label}</div>
+      <PickerButton
+        type="time"
+        label={label}
+        value={value}
+        display={shown}
+        icon={<Clock size={18} weight="bold" className="shrink-0 text-ink-2" aria-hidden="true" />}
+        onPick={onChange}
+        className="w-full"
+      />
     </div>
   )
 }

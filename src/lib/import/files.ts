@@ -20,7 +20,7 @@ export async function readImportFile(file: File): Promise<ReadFile> {
   if (file.size > 40 * 1024 * 1024) throw new ImportFileError('That file is over 40 MB. Split it into smaller parts and try again.')
   if (kind === 'doc') throw new ImportFileError('This is an old Word file (.doc). Open it and save it as .docx or PDF, then try again.')
   if (kind === 'pages' || kind === 'numbers') throw new ImportFileError('Export it from Pages or Numbers as PDF, Word or CSV first.')
-  if (/^(jpe?g|png|heic|webp|gif)$/.test(kind)) throw new ImportFileError('That’s a photo. Leela reads text, so choose the document itself, or add photos from the Notes tab.')
+  if (/^(jpe?g|png|heic|webp|gif)$/.test(kind)) throw new ImportFileError('That’s a photo. LAPdiary reads text, so choose the document itself, or add photos from the Notes tab.')
 
   if (kind === 'docx') {
     const text = docxToText(new Uint8Array(await file.arrayBuffer()))
@@ -49,7 +49,7 @@ export async function readImportFile(file: File): Promise<ReadFile> {
     return { input: { kind: 'text', text }, name, chars: text.trim().length }
   }
   // .txt, .md, WhatsApp exports and anything else that is text.
-  if (/[\u0000-\u0008\u000e-\u001f]/.test(raw.slice(0, 2000))) throw new ImportFileError('Leela can’t read this kind of file. Try Word (.docx), PDF, CSV, Excel or plain text.')
+  if (/[\u0000-\u0008\u000e-\u001f]/.test(raw.slice(0, 2000))) throw new ImportFileError('LAPdiary can’t read this kind of file. Try Word (.docx), PDF, CSV, Excel or plain text.')
   return { input: { kind: 'text', text: raw }, name, chars: raw.trim().length }
 }
 

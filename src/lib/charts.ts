@@ -1,6 +1,6 @@
 // What the charts draw: the marks in each day's column, and day-by-day totals. Built on the same
 // counting functions as Today and History, so a chart never disagrees with the numbers.
-import { TYPES } from './config'
+import { showsFor } from './config'
 import { eventEndMs, nursingSeconds, sleepKind, totalsFor, type Totals } from './counting'
 import { addDaysTz, atLocalTime, dayStart } from './time'
 import type { Child, EventType, Family, LeelaEvent, TimerSegment } from './types'
@@ -51,8 +51,7 @@ const KIND: Partial<Record<EventType, MarkKind>> = {
 
 function belongs(e: LeelaEvent, childId: string, userId: string | null): boolean {
   if (e.deleted_at) return false
-  if (TYPES[e.type]?.familyLevel) return e.created_by === userId
-  return e.child_id === childId
+  return showsFor(e, childId, userId)
 }
 
 /** When an entry ends, for drawing: timers run to now, breastfeeds last as long as their sides. */

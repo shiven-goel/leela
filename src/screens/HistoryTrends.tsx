@@ -328,7 +328,7 @@ export function HistoryTrends({ child }: { child: Child }) {
       {sleepCard}
       {feedCard}
       {diaperCard}
-      <GrowthCard child={child} events={events} now={now} />
+      <GrowthCard child={child} events={events} now={now} who={false} />
       {solidsCard}
       {pumpCard}
       {tempCard}
@@ -341,7 +341,8 @@ export function HistoryTrends({ child }: { child: Child }) {
 }
 
 // ---------------------------------------------------------------------------- growth
-function GrowthCard({ child, events, now }: { child: Child; events: LeelaEvent[]; now: number }) {
+/** Growth by age. With `who`, against the WHO curves and percentiles (only in the admin panel). */
+export function GrowthCard({ child, events, now, who }: { child: Child; events: LeelaEvent[]; now: number; who: boolean }) {
   const prefs = myPrefs()
   const tz = useLeela((s) => s.family)?.timezone ?? 'UTC'
   const kinds = (['weight', 'length', 'head'] as GrowthKind[]).filter((k) => growthPoints(events, child, k).length > 0)
@@ -361,7 +362,7 @@ function GrowthCard({ child, events, now }: { child: Child; events: LeelaEvent[]
   const every = span <= 6 ? 1 : span <= 12 ? 2 : span <= 24 ? 3 : 6
   const xTicks: { x: number; label: string }[] = []
   for (let m = Math.ceil(x0 / every) * every; m <= x1; m += every) xTicks.push({ x: m, label: `${m}m` })
-  const curves = child.sex
+  const curves = child.sex && who
     ? CENTILES.map((c) => ({
         label: `${c.p}${c.p === 3 ? 'rd' : 'th'}`,
         points: Array.from({ length: Math.round((Math.min(x1, 60) - x0) * 2) + 1 }, (_, i) => x0 + i / 2)
@@ -378,13 +379,17 @@ function GrowthCard({ child, events, now }: { child: Child; events: LeelaEvent[]
   return (
     <ChartCard
       title="Growth"
-      sub={child.sex ? `${name} by age, against the WHO growth curves (3rd to 97th percentile).` : `${name} by age. Add whether ${child.name} is a girl or a boy (Family › babies) to compare with the WHO growth curves.`}
+      sub={!who ? `${name} by age.` : child.sex ? `${name} by age, against the WHO growth curves (3rd to 97th percentile).` : `${name} by age. Add whether ${child.name} is a girl or a boy (Settings › babies) to compare with the WHO growth curves.`}
       stats={[
         { label: `Latest, ${fmtShortDate(last.at, tz)}`, value: fmt(last.value) },
-        ...(last.percentile !== undefined ? [{ label: 'WHO percentile', value: ordinal(last.percentile) }] : []),
+        ...(who && last.percentile !== undefined ? [{ label: 'WHO percentile', value: ordinal(last.percentile) }] : []),
         ...(prev ? [{ label: `Since ${fmtShortDate(prev.at, tz)}`, value: `${last.value >= prev.value ? '+' : '−'}${fmt(Math.abs(last.value - prev.value))}` }] : []),
       ]}
-      table={{ head: ['Date', 'Age', name, 'Percentile'], rows: [...pts].reverse().map((p) => [fmtShortDate(p.at, tz), `${one(p.months)} m`, fmt(p.value), p.percentile !== undefined ? ordinal(p.percentile) : '–']) }}
+      table={
+        who
+          ? { head: ['Date', 'Age', name, 'Percentile'], rows: [...pts].reverse().map((p) => [fmtShortDate(p.at, tz), `${one(p.months)} m`, fmt(p.value), p.percentile !== undefined ? ordinal(p.percentile) : '–']) }
+          : { head: ['Date', 'Age', name], rows: [...pts].reverse().map((p) => [fmtShortDate(p.at, tz), `${one(p.months)} m`, fmt(p.value)]) }
+      }
     >
       {kinds.length > 1 && (
         <div className="mb-3 grid gap-1 rounded-2xl bg-card-2 p-1 ring-1 ring-line" style={{ gridTemplateColumns: `repeat(${kinds.length}, minmax(0, 1fr))` }} role="radiogroup" aria-label="Measurement">
@@ -402,7 +407,7 @@ function GrowthCard({ child, events, now }: { child: Child; events: LeelaEvent[]
         xTicks={xTicks}
         curves={curves}
         yFormat={(v) => (k === 'weight' ? one(v) : String(Math.round(v)))}
-        points={pts.map((p) => ({ id: p.id, x: p.months, y: show(p.value), tip: `${fmt(p.value)} at ${one(p.months)} months${p.percentile !== undefined ? `, ${ordinal(p.percentile)} percentile` : ''}` }))}
+        points={pts.map((p) => ({ id: p.id, x: p.months, y: show(p.value), tip: `${fmt(p.value)} at ${one(p.months)} months${who && p.percentile !== undefined ? `, ${ordinal(p.percentile)} percentile` : ''}` }))}
       />
       {child.due_date && child.due_date > child.birth_date && <p className="mt-2 text-[13px] text-ink-3">Uses corrected age (from the due date) until 2 years.</p>}
     </ChartCard>

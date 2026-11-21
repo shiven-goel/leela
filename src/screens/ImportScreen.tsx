@@ -38,7 +38,7 @@ type Q =
 const ACCEPT = '.pdf,.docx,.txt,.md,.csv,.tsv,.xlsx,.xlsm,.html,.htm,.rtf,text/plain,application/pdf'
 
 const FLAG_TEXT: Record<Flag, string> = {
-  duplicate: 'Already in Leela',
+  duplicate: 'Already in LAPdiary',
   no_time: 'No time written, placed at noon',
   approx_time: 'Time guessed from the words',
   no_end: 'No wake-up time',
@@ -168,14 +168,14 @@ export function ImportScreen({ open, onClose }: { open: boolean; onClose: () => 
     try {
       r = run(input, answers)
     } catch {
-      setError('Something in that file tripped Leela up. Try pasting the text instead.')
+      setError('Something in that file tripped LAPdiary up. Try pasting the text instead.')
       setStep('choose')
       return
     }
     if (!r.drafts.length && !r.unknown.length) {
       setError(
         r.unread.length
-          ? 'Leela couldn’t find any baby entries in that. Entries need a time or a date and what happened, like “6:30 fed 60 ml”.'
+          ? 'LAPdiary couldn’t find any baby entries in that. Entries need a time or a date and what happened, like “6:30 fed 60 ml”.'
           : 'That looks empty.',
       )
       setStep('choose')
@@ -279,7 +279,7 @@ export function ImportScreen({ open, onClose }: { open: boolean; onClose: () => 
     body = (
       <>
         <p className="mb-5 text-[16px] text-ink-2">
-          Leela read {result.drafts.length} {result.drafts.length === 1 ? 'entry' : 'entries'}. Answer what you can so it reads the rest right. It remembers your answers for next time, on both your phones.
+          LAPdiary read {result.drafts.length} {result.drafts.length === 1 ? 'entry' : 'entries'}. Answer what you can so it reads the rest right. It remembers your answers for next time, on both your phones.
         </p>
         {asked.map((q) => (
           <QuestionCard key={q.kind === 'word' ? `w-${q.term}` : q.kind} q={q} answers={answers} setAnswers={setAnswers} birthDate={child?.birth_date ?? null} maxDay={dayKey(Date.now(), tz)} />
@@ -366,7 +366,7 @@ export function ImportScreen({ open, onClose }: { open: boolean; onClose: () => 
     body = (
       <>
         <p className="mb-5 text-[16px] text-ink-2">
-          Add what you wrote down before Leela: a Google Doc, a Word file, a PDF, a spreadsheet or a WhatsApp chat. Leela sorts it into sleep, feeds, diapers and the rest, and shows you everything before saving.
+          Add what you wrote down before LAPdiary: a Google Doc, a Word file, a PDF, a spreadsheet or a WhatsApp chat. LAPdiary sorts it into sleep, feeds, diapers and the rest, and shows you everything before saving.
         </p>
 
         {kids.length > 1 && (
@@ -414,7 +414,7 @@ export function ImportScreen({ open, onClose }: { open: boolean; onClose: () => 
             <h2 id="paste-h" className="mb-1 font-display text-[19px] font-bold">
               Or paste it
             </h2>
-            <p className="mb-3 text-[14px] text-ink-2">Shorthand is fine. Leela knows bf, ebm, ff, wd, dd, tt, pcm and lots more, and learns yours.</p>
+            <p className="mb-3 text-[14px] text-ink-2">Shorthand is fine. LAPdiary knows bf, ebm, ff, wd, dd, tt, pcm and lots more, and learns yours.</p>
             <textarea
               value={text}
               onChange={(e) => setText(e.target.value)}
@@ -680,7 +680,7 @@ function Review({
             </button>
           </li>
         )}
-        {count('duplicate') > 0 && <li className="rounded-2xl bg-card-2 px-4 py-3">{count('duplicate')} already in Leela, so they’re left out.</li>}
+        {count('duplicate') > 0 && <li className="rounded-2xl bg-card-2 px-4 py-3">{count('duplicate')} already in LAPdiary, so they’re left out.</li>}
         {count('no_time') > 0 && <li className="rounded-2xl bg-card-2 px-4 py-3">{count('no_time')} had no time written, so they’re placed at noon. Tap one to set its time.</li>}
         {count('no_end') > 0 && <li className="rounded-2xl bg-card-2 px-4 py-3">{count('no_end')} sleeps have no wake-up time and are left out.</li>}
         {count('guessed_feed') > 0 && !prefs.feedDefault && <li className="rounded-2xl bg-card-2 px-4 py-3">{count('guessed_feed')} just say “fed” and are saved as {drafts.find((d) => d.flags.includes('guessed_feed'))?.type === 'bottle' ? 'bottles' : 'breastfeeds'}.</li>}
@@ -858,7 +858,7 @@ function DraftSheet({ draft, unknown, onClose, onChange }: { draft: Draft; unkno
             className="mb-2 w-full"
             onClick={() => {
               void learnWords({ [w]: meaning })
-              toast({ text: `Leela will read “${w}” as ${MEANINGS.find((m) => m.id === meaning)?.label.toLowerCase()} from now on.` })
+              toast({ text: `LAPdiary will read “${w}” as ${MEANINGS.find((m) => m.id === meaning)?.label.toLowerCase()} from now on.` })
             }}
           >
             Always read “{w}” as {MEANINGS.find((m) => m.id === meaning)?.label.toLowerCase()}

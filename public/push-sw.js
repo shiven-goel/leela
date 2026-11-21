@@ -10,7 +10,7 @@ self.addEventListener('push', (event) => {
     data = { body: event.data ? event.data.text() : '' }
   }
   event.waitUntil(
-    self.registration.showNotification(data.title || 'Leela', {
+    self.registration.showNotification(data.title || 'LAPdiary', {
       body: data.body || '',
       tag: data.tag || 'leela',
       renotify: true,

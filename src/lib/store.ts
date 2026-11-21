@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import type { Child, Family, LeelaEvent, Member, Prefs, Profile, TimerSegment } from './types'
 
 export type Tab = 'today' | 'history' | 'notes' | 'diary' | 'family'
-export type OverlayState = { kind: 'import' } | { kind: 'note'; id?: string } | { kind: 'book' } | { kind: 'vaccines' } | null
+export type OverlayState = { kind: 'import' } | { kind: 'note'; id?: string } | { kind: 'book' } | { kind: 'vaccines' } | { kind: 'report' } | { kind: 'admin' } | null
 export type Status = 'loading' | 'signed_out' | 'no_family' | 'ready'
 
 export interface Toast {
@@ -33,6 +33,8 @@ export interface LeelaState {
   pending: Record<string, number>
   pendingCount: number
   online: boolean
+  /** Catching up with the server right now. */
+  syncing: boolean
   lastSyncAt: string | null
   /** When I last opened the app before this visit; drives the catch-up card. */
   catchUpSince: string | null
@@ -74,6 +76,7 @@ const initial = {
   pending: {},
   pendingCount: 0,
   online: typeof navigator === 'undefined' ? true : navigator.onLine,
+  syncing: false,
   lastSyncAt: null,
   catchUpSince: null,
   catchUpDismissed: false,

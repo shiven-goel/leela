@@ -183,7 +183,7 @@ function BookPages({ book, authors, prefs, tz, preview, size = 'A4' }: { book: B
       <Page preview={preview} last>
         <div style={{ textAlign: 'center', paddingTop: preview ? 40 : '90mm', color: INK2 }}>
           <div style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: pt(20), color: INK }}>To be continued</div>
-          <div style={{ marginTop: 6, fontSize: pt(11) }}>Made {fmtLongDate(Date.now(), tz)} with Leela</div>
+          <div style={{ marginTop: 6, fontSize: pt(11) }}>Made {fmtLongDate(Date.now(), tz)} with LAPdiary</div>
         </div>
       </Page>
     </div>
@@ -224,7 +224,7 @@ function MonthChapter({ m, pt, prefs, tz, birth, preview }: { m: BookMonth; pt: 
       {m.memories.map((mem) => (
         <Memory key={mem.id} mem={mem} pt={pt} tz={tz} />
       ))}
-      {m.memories.length === 0 && m.n > 0 && <p style={{ color: INK2, fontStyle: 'italic' }}>A quiet month in the diary. Add notes and photos in Leela and they’ll appear here.</p>}
+      {m.memories.length === 0 && m.n > 0 && <p style={{ color: INK2, fontStyle: 'italic' }}>A quiet month in the diary. Add notes and photos in LAPdiary and they’ll appear here.</p>}
     </Page>
   )
 }

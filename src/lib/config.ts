@@ -22,14 +22,23 @@ export interface TypeMeta {
   timer: boolean
   /** Belongs to a person rather than a child. */
   familyLevel?: boolean
+  /** A person's entry that everyone in the family sees (pumping); others are private (contractions). */
+  sharedWithFamily?: boolean
+}
+
+/** Whether an entry belongs on a baby's screens for this person. */
+export function showsFor(e: { type: EventType; child_id: string | null; created_by: string | null }, childId: string | null | undefined, userId: string | null): boolean {
+  const meta = TYPES[e.type]
+  if (!meta?.familyLevel) return e.child_id === childId
+  return Boolean(meta.sharedWithFamily) || e.created_by === userId
 }
 
 export const TYPES: Record<EventType, TypeMeta> = {
   sleep: { type: 'sleep', label: 'Sleep', action: 'Log sleep', tone: 'sleep', timer: true },
   nursing: { type: 'nursing', label: 'Breastfeed', action: 'Log breastfeed', tone: 'feed', timer: true },
-  bottle: { type: 'bottle', label: 'Bottle', action: 'Log bottle', tone: 'feed', timer: false },
+  bottle: { type: 'bottle', label: 'Bottle', action: 'Log bottle', tone: 'feed', timer: true },
   solids: { type: 'solids', label: 'Solids', action: 'Log solids', tone: 'feed', timer: false },
-  pump: { type: 'pump', label: 'Pumping', action: 'Log pumping', tone: 'pump', timer: true, familyLevel: true },
+  pump: { type: 'pump', label: 'Pumping', action: 'Log pumping', tone: 'pump', timer: true, familyLevel: true, sharedWithFamily: true },
   diaper: { type: 'diaper', label: 'Diaper', action: 'Log diaper', tone: 'diaper', timer: false },
   potty: { type: 'potty', label: 'Potty', action: 'Log potty', tone: 'diaper', timer: false },
   growth: { type: 'growth', label: 'Growth', action: 'Log growth', tone: 'growth', timer: false },
