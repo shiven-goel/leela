@@ -28,6 +28,10 @@ One edge function, `sweetspot-push`, sends every notification, every minute from
 
 Massage is an activity kind (`massage`; older imported ones have `data.label` 'Massage') with its own home button. Daily vitamins: the list is `children.settings.supplements` (`src/lib/supplements.ts`), the Vitamins home button opens `src/components/Vitamins.tsx`, and each one given is a Medicine entry with `data.supplement: true`. Home buttons are now a 3×3 grid: Sleep, Feed, Diaper, Bottle, Pump, Bath, Massage, Vitamins, More.
 
+## History (rebuilt 21 Nov 2026)
+
+One period bar (`src/components/history/PeriodBar.tsx`, periods in `src/lib/period.ts`): Day, Week (last 7 days, the default), Month (calendar), All (since birth), plus a sheet for any day, month of life, calendar month or own dates. Day shows the day strip, tappable totals and the timeline. Longer periods show an overview of category rows (`src/lib/insights.ts`: sleep, feeds, diapers, pumping, each activity kind, vitamins, medicine, temperature, symptoms, growth, firsts, notes) with sparklines and change against the period before; every row opens `src/screens/HistoryDetail.tsx` (figures, bars by day/week/month, time of day, every entry). Activities are counted in times; minutes only from entries with a length (most imported ones have none) and the screen says so. Medicines named like vitamins count as vitamins (`isSupplement`). Search (`HistorySearch.tsx`) covers all history; the ⋯ button has the doctor report for the chosen dates (overlay `report` with `from`/`to`; long ranges become weekly rows), the memory book and import. Older entries load on demand (`loadAllHistory`).
+
 ## Vaccines
 
 Leela's three earlier Vaccine entries (1 Sep, 30 Sep, 30 Oct 2026) were linked to the 6, 10 and 14-week doses on 21 Nov 2026, and the birth doses marked as given before.
