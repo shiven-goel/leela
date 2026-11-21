@@ -99,10 +99,8 @@ export function SweetSpotCard({
   } else if (spot.status === 'night') {
     eyebrow = 'Sweet spot · Night'
     big = spot.wakeAround ? `Likely up around ${fmtTime(spot.wakeAround, tz)}` : 'Asleep for the night'
-    line = [spot.wakeRange ? `most likely ${fmtRange(spot.wakeRange[0], spot.wakeRange[1], tz)}` : '', spot.asleepSince ? `asleep since ${fmtTime(spot.asleepSince, tz)}` : '']
-      .filter(Boolean)
-      .join(' · ')
-    line = line ? line[0].toUpperCase() + line.slice(1) : null
+    const parts = [spot.wakeRange ? `most likely ${fmtRange(spot.wakeRange[0], spot.wakeRange[1], tz)}` : '', spot.asleepSince ? `asleep since ${fmtTime(spot.asleepSince, tz)}` : ''].filter(Boolean).join(' · ')
+    line = parts ? parts[0].toUpperCase() + parts.slice(1) : null
   } else if (spot.status === 'newborn') {
     eyebrow = 'Sweet spot · Newborn guide'
     big = next ? `Sleepy again by ${fmtRange(next.start, next.end, tz)}` : 'Newborns sleep in short stretches'
