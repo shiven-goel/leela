@@ -24,7 +24,8 @@ export function ReportScreen({ open, onClose }: { open: boolean; onClose: () => 
   const segments = useLeela((s) => s.segments)
   const child = activeChild()
   const userId = useLeela((s) => s.userId)
-  const asked = useLeela((s) => (s.overlay?.kind === 'report' && s.overlay.from !== undefined ? { from: s.overlay.from, to: s.overlay.to ?? Date.now() } : null))
+  const overlay = useLeela((s) => s.overlay)
+  const asked = overlay?.kind === 'report' && overlay.from !== undefined ? { from: overlay.from, to: overlay.to ?? Date.now() } : null
   const [days, setDays] = useState<'7' | '14' | '30' | 'asked'>('14')
   useEffect(() => {
     if (open) void loadAllHistory()
