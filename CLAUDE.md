@@ -22,11 +22,17 @@ One edge function, `sweetspot-push`, sends every notification, every minute from
 
 ## Vaccines
 
+Leela's three earlier Vaccine entries (1 Sep, 30 Sep, 30 Oct 2026) were linked to the 6, 10 and 14-week doses on 21 Nov 2026, and the birth doses marked as given before.
+
 `src/lib/vaccines.ts` has India's IAP-ACVIP 2023 schedule. A dose counts as given when a Vaccine entry (type `symptom`, `data.kind` `vaccine`) lists its id in `data.vax`. The family's own dates, doses they're not having and doses given before they used the list live in `children.settings.vaccines` (`dates`, `skip`, `before`). The screen is `src/screens/VaccinesScreen.tsx` (overlay `vaccines`, also opened by `?open=vaccines` or a tapped vaccine notification).
 
 ## Backups
 
 The `backup` edge function (verify_jwt off, checks the cron secret) saves a gzipped JSON copy of every table and the sign-in list to the private storage bucket `backups` (`daily/leela-YYYY-MM-DD.json.gz`) every night at 03:17 India time (pg_cron job `leela-backup`), keeping 30 days. To restore, download a copy and upsert the rows (parents before children: families, profiles, family_members, children, imports, events, timer_segments). If Leela ever has other families, switch to Supabase's paid plan for proper backups. `backup.yml` (weekly copy to GitHub) stays off: Keshav chose not to keep database passwords in a public repo.
+
+## Deploying edge functions
+
+The deployed functions are one-line wrappers made in the Supabase dashboard (Edge Functions > function > Code > Deploy updates): `import 'https://cdn.jsdelivr.net/gh/vahsekatilap/leela@<commit>/supabase/functions/<name>/index.ts'`. The real code and its helper files load from that exact commit, so push first, then change the commit in the wrapper. `ghar-bridge`, `sweetspot-push` and `backup` are deployed this way (commit `50e82d4`, 21 Nov 2026); all three have Verify JWT off. `leela-check` is Shiven's old one-off test function.
 
 ## Checking work
 
@@ -34,4 +40,4 @@ Network installs may not work in Claude's workspace. Push work to a branch first
 
 ## Known follow-ups
 
-- Done on 21 Nov 2026: `sweetspot-push` uses the new address (and maps old saved links to it); Shiven's empty test account and the end-to-end test families were deleted; `e2e.yml` runs only by hand now (a full run adds test families to the real database, so delete them afterwards). It still has no `CANARY_KEY`.
+- Done on 21 Nov 2026: `sweetspot-push` uses the new address (and maps old saved links to it); Shiven's empty test account ("Goel"), the check family and all end-to-end test families and accounts were deleted (only the family "NIKE" with Keshav, Nida and Leela is left; 26 old test photos remain in the `family` bucket under deleted family folders); `e2e.yml` runs only by hand now (a full run adds test families to the real database, so delete them afterwards). It still has no `CANARY_KEY`.
