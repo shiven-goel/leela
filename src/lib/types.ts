@@ -146,7 +146,7 @@ export interface Prefs {
   /** Shows the admin panel (set by hand in the database, for Keshav only). */
   admin?: boolean
   /** Which notifications this person gets (see alerts.ts). */
-  alerts?: Partial<{ sweetspot: boolean; medicine: boolean; vaccines: boolean; summary: boolean; summaryAt: string; pump: boolean }>
+  alerts?: Partial<{ sweetspot: boolean; medicine: boolean; vaccines: boolean; summary: boolean; summaryAt: string; pump: boolean; vitamins: boolean; weekly: boolean }>
 }
 
 export interface Child {

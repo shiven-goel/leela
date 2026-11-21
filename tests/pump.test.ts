@@ -1,6 +1,7 @@
 // Run with: npx tsx tests/pump.test.ts
 import assert from 'node:assert/strict'
 import { pumpDue, readAlerts } from '../src/lib/alerts'
+import { pumpingCoach } from '../src/lib/pumping'
 
 const TZ = 'Asia/Kolkata'
 const at = (d: string, hhmm: string) => Date.parse(`2026-11-${d}T${hhmm}:00+05:30`)
@@ -50,5 +51,26 @@ assert.equal(few.dueAt, at('21', '13:15'))
 // Off unless turned on.
 assert.equal(readAlerts({}).pump, false)
 assert.equal(readAlerts({ alerts: { pump: true } }).pump, true)
+
+// The coach: two weeks of pumping both sides twice a day, falling a fifth in the last week.
+{
+  const evs = []
+  for (let i = 13; i >= 0; i--) {
+    const day = at('21', '00:00') - i * 86_400_000
+    const ml = i >= 7 ? 50 : 40
+    for (const h of [10, 18]) {
+      const s = day + h * 3_600_000 - 5.5 * 3_600_000 + 5.5 * 3_600_000
+      evs.push(ev('pump', s, s + 20 * 60_000, { data: { left_ml: h === 10 ? ml + 20 : ml, right_ml: h === 10 ? ml + 10 : ml - 10 } }))
+    }
+  }
+  const startOfDay = (t: number) => t - ((t + 5.5 * 3_600_000) % 86_400_000)
+  const c = pumpingCoach(evs as never, at('21', '20:00'), TZ, startOfDay)!
+  assert.ok(c.trend! < -0.1, `trend ${c.trend}`)
+  assert.equal(c.tips[0].kind, 'watch')
+  assert.match(c.tips[0].title, /^Down /)
+  assert.equal(c.best?.label, '9am–12pm')
+  assert.ok(c.sides.left > c.sides.right)
+  assert.equal(c.daily.length, 14)
+}
 
 console.log('pump: all good')

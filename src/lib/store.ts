@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import type { Child, Family, LeelaEvent, Member, Prefs, Profile, TimerSegment } from './types'
 
 export type Tab = 'today' | 'history' | 'notes' | 'diary' | 'family'
-export type OverlayState = { kind: 'import' } | { kind: 'note'; id?: string } | { kind: 'book' } | { kind: 'vaccines' } | { kind: 'report'; from?: number; to?: number } | { kind: 'admin' } | null
+export type OverlayState = { kind: 'import' } | { kind: 'note'; id?: string } | { kind: 'book' } | { kind: 'vaccines' } | { kind: 'report'; from?: number; to?: number } | { kind: 'admin' } | { kind: 'pumping' } | null
 export type Status = 'loading' | 'signed_out' | 'no_family' | 'ready'
 
 export interface Toast {

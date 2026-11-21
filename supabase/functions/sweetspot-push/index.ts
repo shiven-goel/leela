@@ -11,7 +11,7 @@
 // (action "test"). Deploy with verify_jwt = false: this function checks the secret or the user.
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import { sweetSpot } from './sweetspot.js'
-import { clockText, dayCounts, localDay, localMidnight, localMinute, medicinesDue, pumpDue, hoursText, readAlerts, summaryText, vaccinePlan, vaccineReminder } from './alerts.js'
+import { clockText, dayCounts, localDay, localMidnight, localMinute, medicinesDue, pumpDue, expectedMl, hoursText, vitaminsLeft, vitaminText, weekText, readAlerts, summaryText, vaccinePlan, vaccineReminder } from './alerts.js'
 import { sendPush, type Vapid } from './webpush.ts'
 
 const DAY = 86_400_000
@@ -238,10 +238,11 @@ async function others(admin: Db, vapid: Vapid, now: number, subs: Sub[], member:
     const tz = fam.timezone || 'UTC'
     const p = pumpDue(((emptying ?? []) as Row[]).filter((e) => e.family_id === fam.id) as never, now, tz)
     if (!p || now < p.dueAt || now >= p.dueAt + 2 * H) continue
+    const ml = expectedMl(((emptying ?? []) as Row[]).filter((e) => e.family_id === fam.id) as never, p.side, now, tz, now)
     for (const sub of phones) {
       await send(sub, kid, `pump/${p.side}/${p.lastAt}`, {
         title: p.other ? `Time to pump: ${p.side} side` : 'Time to pump',
-        body: `${p.other ? `${p.side === 'left' ? 'Left' : 'Right'} side last` : 'Last'} emptied ${clockText(p.lastAt, tz)} (${p.lastKind === 'pump' ? 'pumping' : 'breastfeed'}), ${hoursText(now - p.lastAt)} ago.`,
+        body: `${p.other ? `${p.side === 'left' ? 'Left' : 'Right'} side last` : 'Last'} emptied ${clockText(p.lastAt, tz)} (${p.lastKind === 'pump' ? 'pumping' : 'breastfeed'}), ${hoursText(now - p.lastAt)} ago.${ml ? ` This time usually gives about ${ml} ml.` : ''}`,
         tag: `pump-${fam.id}`,
         open: 'today',
       })
@@ -279,6 +280,38 @@ async function others(admin: Db, vapid: Vapid, now: number, subs: Sub[], member:
         for (const sub of phones) {
           if (!want(sub).vaccines) continue
           await send(sub, kid, r.slot, { title: r.title, body: r.body, tag: `vaccines-${kid.id}`, open: 'vaccines' })
+        }
+      }
+    }
+
+    // Vitamins: from 7 in the evening, if one on the baby's list hasn't been given today.
+    if (minute >= 19 * 60 && minute < 21 * 60) {
+      const left = vitaminsLeft(kid.settings, mine as never, kid.id, localMidnight(now, tz), now)
+      if (left.length) {
+        const t = vitaminText(kid.name, left)
+        for (const sub of phones) {
+          if (!want(sub).vitamins) continue
+          await send(sub, kid, `vit/${today}`, { ...t, tag: `vitamins-${kid.id}`, open: 'today' })
+        }
+      }
+    }
+
+    // The week: Sunday from 11 in the morning, against the week before.
+    if (new Date(localMidnight(now, tz) + 12 * H).getUTCDay() === 0 && minute >= 11 * 60 && minute < 13 * 60 && phones.some((s) => want(s).weekly)) {
+      const { data: fortnight } = await admin
+        .from('events')
+        .select('id, family_id, child_id, type, started_at, ended_at, timer_state, data, deleted_at')
+        .eq('family_id', kid.family_id)
+        .is('deleted_at', null)
+        .gte('started_at', new Date(now - 16 * DAY).toISOString())
+        .order('started_at')
+        .limit(10000)
+      const days = (i: number) => localMidnight(localMidnight(now, tz) - i * DAY + 12 * H, tz)
+      const w = weekText(kid.name, (fortnight ?? []) as never, kid.id, days, kid.settings)
+      if (w) {
+        for (const sub of phones) {
+          if (!want(sub).weekly) continue
+          await send(sub, kid, `week/${today}`, { ...w, tag: `week-${kid.id}`, open: 'today' })
         }
       }
     }

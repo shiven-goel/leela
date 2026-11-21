@@ -164,6 +164,11 @@ function Body({
     <>
       <PeriodBar period={period} onChange={setPeriod} tz={tz} now={now} start={start} birth={child.birth_date} kinds={['week', 'month', 'all']} />
 
+      {c.id === 'pump' && (
+        <button type="button" onClick={() => useLeela.getState().set({ overlay: { kind: 'pumping' } })} className="mb-4 flex min-h-12 w-full items-center justify-between rounded-2xl bg-[var(--pump-soft)] px-4 text-[16px] font-semibold">
+          Pumping coach: yield, best times, what would help <span aria-hidden="true">›</span>
+        </button>
+      )}
       <div className="mb-4 px-1">
         <p className="flex items-baseline gap-2">
           <span className="num font-display text-[34px] font-extrabold leading-none">{h.value}</span>

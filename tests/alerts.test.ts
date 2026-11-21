@@ -3,7 +3,7 @@
 // The phone is set to New York while the family is in India: everything follows the family's clock.
 process.env.TZ = 'America/New_York'
 import assert from 'node:assert/strict'
-import { dayCounts, localMidnight, localMinute, medicinesDue, readAlerts, summaryText } from '../src/lib/alerts'
+import { dayCounts, localMidnight, localMinute, medicinesDue, readAlerts, summaryText, vitaminText, vitaminsLeft, weekText } from '../src/lib/alerts'
 import { SCHEDULE, inDaysText, localDay, nextVisit, vaccinePlan, vaccineReminder, visitDueDate } from '../src/lib/vaccines'
 
 const TZ = 'Asia/Kolkata'
@@ -106,8 +106,41 @@ assert.equal(text.title, 'Leela’s day so far')
 assert.equal(text.body, 'Slept 6 h 30 m · 2 feeds: 1 breastfeed, 1 bottle (90 ml) · 2 nappies (2 wet, 1 dirty) · 3 medicine doses.')
 
 // ---------------------------------------------------------------- choices
-assert.deepEqual(readAlerts({}), { sweetspot: true, medicine: true, vaccines: true, summary: true, summaryAt: '20:30', pump: false })
+assert.deepEqual(readAlerts({}), { sweetspot: true, medicine: true, vaccines: true, summary: true, summaryAt: '20:30', pump: false, vitamins: true, weekly: true })
 assert.equal(readAlerts({ alerts: { summaryAt: '25:00' } }).summaryAt, '20:30')
 assert.equal(readAlerts({ alerts: { medicine: false } }).medicine, false)
+
+// Vitamins left today, and the week's summary.
+{
+  const IST = 'Asia/Kolkata'
+  const t = (d: string, hm: string) => Date.parse(`2026-11-${d}T${hm}:00+05:30`)
+  const mk = (type: string, start: number, end: number | null, data: Record<string, unknown> = {}) => ({ id: `w${start}${type}`, type, child_id: type === 'pump' ? null : 'k', started_at: new Date(start).toISOString(), ended_at: end === null ? null : new Date(end).toISOString(), timer_state: null, deleted_at: null, data })
+  const settings = { supplements: [{ id: 'a', name: 'Vitamin D' }, { id: 'b', name: 'Iron' }] }
+  const evs = [mk('medicine', t('22', '09:00'), null, { name: 'vitamin d', supplement: true })]
+  assert.deepEqual(vitaminsLeft(settings, evs, 'k', t('22', '00:00'), t('22', '20:00')), ['Iron'])
+  assert.deepEqual(vitaminsLeft({}, evs, 'k', t('22', '00:00'), t('22', '20:00')), [])
+  assert.equal(vitaminText('Leela', ['Iron']).title, 'Iron not given yet today')
+  assert.equal(vitaminText('Leela', ['Vitamin D', 'Iron']).title, 'Vitamin D and Iron not given yet today')
+
+  const week: ReturnType<typeof mk>[] = []
+  for (let d = 8; d <= 21; d++) {
+    const day = String(d).padStart(2, '0')
+    const late = d >= 15
+    week.push(mk('sleep', t(day, '01:00'), t(day, late ? '11:00' : '10:00')))
+    for (const h of ['12', '15', '18', '21']) week.push(mk('nursing', t(day, `${h}:00`), t(day, `${h}:20`)))
+    week.push(mk('diaper', t(day, '12:30'), null, { kind: 'wet' }))
+    week.push(mk('pump', t(day, '11:30'), t(day, '11:50'), { left_ml: late ? 60 : 50 }))
+    if (late) for (const v of ['Vitamin D', 'Iron']) week.push(mk('medicine', t(day, '09:00'), null, { name: v, supplement: true }))
+  }
+  week.push(mk('milestone', t('20', '10:00'), null, { label: 'First laugh' }))
+  const days = (i: number) => localMidnight(localMidnight(t('22', '11:00'), IST) - i * 86_400_000 + 12 * 3_600_000, IST)
+  const w = weekText('Leela', week, 'k', days, settings)!
+  assert.equal(w.title, 'Leela’s week')
+  assert.match(w.body, /Sleep 10 h a day \(\+1 h\)/)
+  assert.match(w.body, /4 feeds a day ·/)
+  assert.match(w.body, /pumped 60 ml a day \(\+20%\)/)
+  assert.match(w.body, /all vitamins on 7 of 7 days/)
+  assert.match(w.body, /1 new first/)
+}
 
 console.log('alerts: all good')

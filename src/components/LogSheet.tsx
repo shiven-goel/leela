@@ -924,6 +924,9 @@ function PumpHint({ events, tz }: { events: LeelaEvent[]; tz: string }) {
     <p className="mb-4 space-y-1.5 rounded-2xl bg-[var(--pump-soft)] px-4 py-3 text-[15px] leading-snug">
       {line(p, Boolean(p.other))}
       {p.other && line(p.other, true)}
+      <button type="button" onClick={() => useLeela.getState().set({ overlay: { kind: 'pumping' } })} className="mt-1 block min-h-9 font-semibold text-[var(--pump)]">
+        Open the pumping coach ›
+      </button>
     </p>
   )
 }

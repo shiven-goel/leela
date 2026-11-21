@@ -99,6 +99,8 @@ export function AlertSettings() {
           )}
           <Toggle label="Medicine doses due" checked={a.medicine} onChange={(v) => void saveAlerts({ medicine: v })} tone="health" />
           <Toggle label="Vaccines due" checked={a.vaccines} onChange={(v) => void saveAlerts({ vaccines: v })} tone="health" />
+          <Toggle label="Vitamins not given by 7 pm" checked={a.vitamins} onChange={(v) => void saveAlerts({ vitamins: v })} tone="health" />
+          <Toggle label="How the week went (Sunday morning)" checked={a.weekly} onChange={(v) => void saveAlerts({ weekly: v })} />
           <Toggle label="Time to pump" checked={a.pump} onChange={(v) => void saveAlerts({ pump: v })} tone="pump" />
           <Toggle label="Evening summary of the day" checked={a.summary} onChange={(v) => void saveAlerts({ summary: v })} />
           {a.summary && (
