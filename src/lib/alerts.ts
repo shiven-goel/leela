@@ -177,6 +177,8 @@ export function pumpDue(events: Ev[], now: number, timeZone: string): PumpDue | 
   const l = forSide(done, 'left', now, timeZone)
   const r = forSide(done, 'right', now, timeZone)
   if (!l || !r) return l ?? r
+  // Both emptied together (or sides not noted): one answer.
+  if (l.lastAt === r.lastAt && Math.abs(l.dueAt - r.dueAt) < 10 * MIN) return l.dueAt <= r.dueAt ? l : r
   const [first, second] = l.dueAt <= r.dueAt ? [l, r] : [r, l]
   return { ...first, other: second }
 }
