@@ -10,14 +10,15 @@ import { SweetSpotCard, SweetSpotSheet } from '../components/SweetSpot'
 import { TimerCard } from '../components/TimerCard'
 import { Timeline } from '../components/Timeline'
 import { ChildSheet } from '../components/ChildSheet'
+import { HealthCards } from '../components/HealthCards'
 import { useNow } from '../hooks/useNow'
 import { TYPES } from '../lib/config'
 import { lastOf, sleepState, totalsFor } from '../lib/counting'
 import { eventDetail, eventTitle } from '../lib/describe'
 import { phase, sweetSpot } from '../lib/sweetspot'
-import { activeChild, displayName, myPrefs, useLeela } from '../lib/store'
+import { activeChild, loggedBy, myPrefs, useLeela } from '../lib/store'
 import { ageText, agoText, dayStart, durationText, fmtTime } from '../lib/time'
-import type { EventType, LeelaEvent } from '../lib/types'
+import type { EventData, EventType, LeelaEvent } from '../lib/types'
 import { FEVER_C, fmtTemp } from '../lib/units'
 
 export function TodayScreen() {
@@ -32,7 +33,7 @@ export function TodayScreen() {
   const child = activeChild()
   const tz = family.timezone
 
-  const [sheet, setSheet] = useState<{ type: EventType; group?: EventType[]; edit?: LeelaEvent } | null>(null)
+  const [sheet, setSheet] = useState<{ type: EventType; group?: EventType[]; edit?: LeelaEvent; preset?: EventData } | null>(null)
   const [more, setMore] = useState(false)
   const [addChild, setAddChild] = useState(false)
   const [sleepOpen, setSleepOpen] = useState(false)
@@ -177,6 +178,14 @@ export function TodayScreen() {
 
       <SweetSpotCard spot={spot} child={child} now={now} tz={tz} onOpen={() => setSpotOpen(true)} onLogSleep={() => setSheet({ type: 'sleep' })} />
 
+      <HealthCards
+        child={child}
+        events={events}
+        now={now}
+        tz={tz}
+        onGiveDose={(last) => setSheet({ type: 'medicine', preset: { name: last.data.name, dose: last.data.dose, unit: last.data.unit, every_h: last.data.every_h ?? null } })}
+      />
+
       <div className="mt-4 grid grid-cols-2 gap-3">
         {tiles.map((t) => (
           <button
@@ -235,6 +244,10 @@ export function TodayScreen() {
       <MoreSheet
         open={more}
         onClose={() => setMore(false)}
+        onVaccines={() => {
+          setMore(false)
+          set({ overlay: { kind: 'vaccines' } })
+        }}
         onPick={(t) => {
           setMore(false)
           if (t === 'note') useLeela.getState().set({ overlay: { kind: 'note' } })
@@ -266,6 +279,7 @@ export function TodayScreen() {
           type={sheet.type}
           group={sheet.group}
           edit={sheet.edit}
+          preset={sheet.preset}
         />
       )}
       <ChildSheet open={addChild} onClose={() => setAddChild(false)} />
@@ -355,7 +369,7 @@ function CatchUp({ events, now }: { events: LeelaEvent[]; now: number }) {
     .sort((a, b) => b.started_at.localeCompare(a.started_at))
   if (!items.length) return null
   const segs = Object.values(segments)
-  const names = [...new Set(items.map((e) => displayName(e.created_by)))]
+  const names = [...new Set(items.map((e) => loggedBy(e, { capital: true })))]
   return (
     <section className="mb-4 rounded-[26px] bg-card p-4 shadow-lift" aria-labelledby="catchup-h">
       <div className="mb-2 flex items-start justify-between gap-2">

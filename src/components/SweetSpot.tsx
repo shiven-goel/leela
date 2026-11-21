@@ -3,9 +3,11 @@ import { ArrowCounterClockwise, Bed, CaretRight, MoonStars, Sparkle, SunHorizon 
 import { useEffect, useRef, useState } from 'react'
 import { saveChildSettings } from '../lib/actions'
 import { disableReminders, enableReminders, localReminder, pushSupport, savedReminder, sendTestReminder, setReminderLead } from '../lib/push'
+import { SUPPORT_TEXT, myAlerts, saveAlerts } from './AlertSettings'
 import { phase, readSettings, type SleepWindow, type SweetSpot, type SweetSpotSettings } from '../lib/sweetspot'
 import { basisText, fmtRange, minutesText, rangeText, sleepName, spanText } from '../lib/sweetspotText'
 import { durationText, fmtTime } from '../lib/time'
+import { useLeela } from '../lib/store'
 import type { Child } from '../lib/types'
 import { BottleIcon } from './Icon'
 import { Sheet } from './Sheet'
@@ -156,7 +158,7 @@ export function SweetSpotCard({
         )}
         <p className={clsx('mt-2 text-[13px]', filled ? 'text-white/80' : 'text-ink-3')}>
           {basisText(spot, name)}
-          {localReminder() !== null && ` · reminder ${localReminder()} min before`}
+          {localReminder() !== null && myAlerts().sweetspot && ` · reminder ${localReminder()} min before`}
         </p>
       </button>
     </section>
@@ -424,14 +426,9 @@ function Fact({ label, value }: { label: string; value: string }) {
 }
 
 // ---------------------------------------------------------------------------- reminders
-const SUPPORT_TEXT = {
-  'ios-install': 'On iPhone and iPad, notifications work once Leela is on your Home Screen: tap Share, then Add to Home Screen, and open Leela from there.',
-  unsupported: 'This browser can’t show notifications. Chrome, Edge, Firefox or Leela on an iPhone Home Screen can.',
-  denied: 'Notifications are blocked for Leela. Allow them in the browser’s site settings (or the phone’s Settings › Notifications), then choose a time again.',
-} as const
-
 /** Per person, per phone: a notification some minutes before each nap and bedtime sweet spot. */
 function Reminders({ name }: { name: string }) {
+  useLeela((s) => s.profiles)
   const [support, setSupport] = useState(pushSupport)
   const [lead, setLead] = useState<number | null>(localReminder)
   const [busy, setBusy] = useState(false)
@@ -443,24 +440,35 @@ function Reminders({ name }: { name: string }) {
       alive = false
     }
   }, [])
+  const alerts = myAlerts()
+  // Sweet spot reminders are on when this phone has notifications and this person wants them.
+  const shown = lead !== null && alerts.sweetspot ? lead : null
 
   const choose = async (v: string | undefined) => {
     const next = !v || v === 'off' ? null : Number(v)
-    if (next === lead || busy) return
+    if (next === shown || busy) return
     setBusy(true)
     setNote(null)
     if (next === null) {
-      await disableReminders()
-      setLead(null)
+      // Other notifications (medicine, vaccines, summary) keep the phone's notifications on.
+      if (alerts.medicine || alerts.vaccines || alerts.summary) await saveAlerts({ sweetspot: false })
+      else {
+        await disableReminders()
+        setLead(null)
+      }
     } else if (lead === null) {
       const r = await enableReminders(next)
       setSupport(pushSupport())
       if (r.ok) {
         setLead(next)
-        setNote('Reminders are on for this phone.')
+        if (!alerts.sweetspot) await saveAlerts({ sweetspot: true })
+        setNote('Reminders are on for this phone. Choose other notifications in Family.')
       } else if (r.reason === 'failed') setNote(`Couldn’t turn reminders on${r.detail ? `: ${r.detail}` : ''}.`)
-    } else if (await setReminderLead(next)) setLead(next)
-    else setNote('Couldn’t change it. Check the connection and try again.')
+    } else {
+      if (!alerts.sweetspot) await saveAlerts({ sweetspot: true })
+      if (next === lead || (await setReminderLead(next))) setLead(next)
+      else setNote('Couldn’t change it. Check the connection and try again.')
+    }
     setBusy(false)
   }
   const test = async () => {
@@ -482,19 +490,19 @@ function Reminders({ name }: { name: string }) {
           { id: '15', label: '15 min' },
           { id: '30', label: '30 min' },
         ]}
-        value={lead === null ? 'off' : String(lead)}
+        value={shown === null ? 'off' : String(shown)}
         onChange={(v) => void choose(v)}
         tone="sleep"
         columns={5}
         compact
       />
       <p className="mt-2 text-[14px] text-ink-2">
-        {lead === null
+        {shown === null
           ? `A notification before ${name}’s nap and bedtime sweet spots, even when Leela is closed. Everyone turns it on on their own phone.`
-          : `On: ${lead} minutes before each nap and bedtime sweet spot, for every baby in the family.`}
+          : `On: ${shown} minutes before each nap and bedtime sweet spot, for every baby in the family.`}
       </p>
       {support !== 'ok' && <p className="mt-2 rounded-2xl bg-[var(--feed-soft)] px-4 py-3 text-[14px] leading-snug">{SUPPORT_TEXT[support]}</p>}
-      {lead !== null && (
+      {shown !== null && (
         <Button variant="secondary" size="md" className="mt-3" onClick={() => void test()} disabled={busy}>
           Send a test notification
         </Button>

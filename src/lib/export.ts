@@ -1,7 +1,7 @@
 // "Download all our data": everything the family has stored, as one JSON file and a CSV of entries.
 import { TYPES } from './config'
 import { eventDetail, eventTitle, noteBody } from './describe'
-import { getState } from './store'
+import { getState, gharName } from './store'
 import { supabase } from './supabase'
 import { fmtTime } from './time'
 import type { Family, LeelaEvent } from './types'
@@ -84,7 +84,7 @@ function eventsCsv(events: LeelaEvent[], family: Family, people: Record<string, 
         detail,
         e.type === 'note' ? '' : (e.notes ?? ''),
         e.child_id ? (kids[e.child_id] ?? '') : '',
-        e.created_by ? (people[e.created_by] ?? '') : '',
+        gharName(e) ?? (e.created_by ? (people[e.created_by] ?? '') : ''),
         e.source,
         e.deleted_at ? 'yes' : '',
       ]

@@ -1,9 +1,23 @@
+import { CaretRight } from '@phosphor-icons/react'
 import { MORE_GROUPS, TYPES, toneSoft, toneVar } from '../lib/config'
 import type { EventType } from '../lib/types'
 import { TypeIcon } from './Icon'
 import { Sheet } from './Sheet'
 
-export function MoreSheet({ open, onClose, onPick, dayLabel }: { open: boolean; onClose: () => void; onPick: (t: EventType) => void; dayLabel?: string }) {
+export function MoreSheet({
+  open,
+  onClose,
+  onPick,
+  dayLabel,
+  onVaccines,
+}: {
+  open: boolean
+  onClose: () => void
+  onPick: (t: EventType) => void
+  dayLabel?: string
+  /** Opens the vaccine schedule (shown under Health). */
+  onVaccines?: () => void
+}) {
   return (
     <Sheet open={open} onClose={onClose} title={dayLabel ? `Add to ${dayLabel}` : 'Log something'}>
       {MORE_GROUPS.map((g) => (
@@ -28,6 +42,11 @@ export function MoreSheet({ open, onClose, onPick, dayLabel }: { open: boolean; 
               )
             })}
           </div>
+          {g.title === 'Health' && onVaccines && (
+            <button type="button" onClick={onVaccines} className="mt-2 flex min-h-12 w-full items-center justify-between rounded-2xl bg-card-2 px-4 text-[16px] font-semibold ring-1 ring-line">
+              Vaccine schedule <CaretRight size={18} weight="bold" className="text-ink-3" aria-hidden="true" />
+            </button>
+          )}
         </section>
       ))}
     </Sheet>

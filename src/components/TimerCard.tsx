@@ -4,7 +4,7 @@ import { nursingPause, nursingSwitch, stopTimer } from '../lib/actions'
 import { TYPES, toneSoft, toneVar } from '../lib/config'
 import { nursingSeconds } from '../lib/counting'
 import { eventTitle } from '../lib/describe'
-import { displayName, useLeela } from '../lib/store'
+import { loggedBy, useLeela } from '../lib/store'
 import { clockText, fmtTime } from '../lib/time'
 import type { LeelaEvent, Side } from '../lib/types'
 import { useNow } from '../hooks/useNow'
@@ -15,12 +15,12 @@ export function TimerCard({ event, onOpen }: { event: LeelaEvent; onOpen: (e: Le
   const now = useNow(1000)
   const family = useLeela((s) => s.family)
   const segments = useLeela((s) => s.segments)
-  const userId = useLeela((s) => s.userId)
+  useLeela((s) => s.userId)
   useLeela((s) => s.profiles)
   const meta = TYPES[event.type]
   const tz = family?.timezone ?? 'UTC'
   const started = Date.parse(event.started_at)
-  const by = event.created_by === userId ? 'you' : displayName(event.created_by)
+  const by = loggedBy(event)
 
   const isNursing = event.type === 'nursing'
   const secs = isNursing ? nursingSeconds(event, Object.values(segments), now) : null

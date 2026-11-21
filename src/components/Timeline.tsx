@@ -1,6 +1,6 @@
 import { TYPES, toneSoft, toneVar } from '../lib/config'
 import { eventDetail, eventTitle } from '../lib/describe'
-import { displayName, myPrefs, useLeela } from '../lib/store'
+import { loggedBy, myPrefs, useLeela } from '../lib/store'
 import { fmtTime } from '../lib/time'
 import type { LeelaEvent } from '../lib/types'
 import { TypeIcon } from './Icon'
@@ -18,7 +18,7 @@ export function Timeline({
 }) {
   const family = useLeela((s) => s.family)
   const segments = useLeela((s) => s.segments)
-  const userId = useLeela((s) => s.userId)
+  useLeela((s) => s.userId)
   // Subscribed so a renamed family member shows up straight away.
   useLeela((s) => s.profiles)
   const prefs = myPrefs()
@@ -31,7 +31,7 @@ export function Timeline({
     <ol className="relative">
       {events.map((e) => {
         const meta = TYPES[e.type]
-        const by = e.created_by === userId ? 'you' : displayName(e.created_by)
+        const by = loggedBy(e)
         const detail = eventDetail(e, segs, prefs, now)
         return (
           <li key={e.id}>

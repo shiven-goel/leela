@@ -1,6 +1,7 @@
 import { ClockCounterClockwise, Copy, Crown, DownloadSimple, FileArrowUp, PencilSimple, Plus, ShareNetwork, X } from '@phosphor-icons/react'
 import { useState } from 'react'
 import { ActivitySheet } from '../components/ActivitySheet'
+import { AlertSettings } from '../components/AlertSettings'
 import { ChildSheet } from '../components/ChildSheet'
 import { Sheet } from '../components/Sheet'
 import { Button, Choices, TextInput } from '../components/ui'
@@ -213,6 +214,10 @@ export function FamilyScreen() {
         <Button variant="secondary" size="md" className="mt-2 w-full" onClick={() => setChildSheet({})}>
           <Plus size={18} weight="bold" aria-hidden="true" /> Add a baby
         </Button>
+      </Section>
+
+      <Section title="Notifications">
+        <AlertSettings />
       </Section>
 
       <Section title="Units and display">

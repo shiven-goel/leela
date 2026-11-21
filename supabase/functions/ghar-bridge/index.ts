@@ -96,7 +96,17 @@ function asGharLogs(events: Row[], names: Map<string, string>): Row[] {
     } else if (e.type === 'diaper') {
       out.push({ id: e.id, kind: 'nappy', at: e.started_at, room: null, detail: [nappyDetail(e), extra].filter(Boolean).join(' · ') || null, by, from_ghar: fromGhar })
     } else if (e.type === 'note' || e.type === 'medicine' || e.type === 'symptom' || e.type === 'temperature') {
-      const label = e.type === 'note' ? '' : e.type[0].toUpperCase() + e.type.slice(1)
+      const d = e.data ?? {}
+      const label =
+        e.type === 'note'
+          ? ''
+          : e.type === 'medicine'
+            ? ['Medicine', [d.name, d.dose, d.dose ? d.unit : null].filter(Boolean).join(' ')].filter(Boolean).join(': ')
+            : e.type === 'symptom' && d.kind === 'vaccine'
+              ? ['Vaccine', d.vaccine].filter(Boolean).join(': ')
+              : e.type === 'symptom' && d.kind === 'visit'
+                ? 'Doctor visit'
+                : e.type[0].toUpperCase() + e.type.slice(1)
       out.push({ id: e.id, kind: 'note', at: e.started_at, room: null, detail: [label, extra].filter(Boolean).join(' · ') || null, by, from_ghar: fromGhar })
     }
   }
@@ -185,7 +195,7 @@ async function log(client: Row, link: Row, me: Access, body: Row) {
     const d = detail.toLowerCase()
     const type = d.startsWith('breast') ? 'nursing' : d.startsWith('solid') ? 'solids' : 'bottle'
     const data: Row = { ghar: { ...ghar, detail: detail || undefined } }
-    if (type === 'bottle') data.contents = d.startsWith('formula') ? 'formula' : 'breastmilk'
+    if (type === 'bottle') data.contents = d.startsWith('formula') ? 'formula' : 'breast'
     row = { ...base, id, type, started_at: at, ended_at: at, data }
   } else if (body.kind === 'nappy') {
     const d = detail.toLowerCase()

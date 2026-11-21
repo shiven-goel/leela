@@ -3,6 +3,8 @@
 # canary: checks that a long-running test family still has every entry it ever logged (about a minute).
 # push: only the Sweet spot reminder checks, delivered through Mozilla's real push service (a few minutes).
 # Reports go to the e2e-results branch: full/report.md, canary/report.md and push/report.md.
+# Manual only (Actions > End-to-end tests > Run workflow): since the handover on 21 Nov 2026 it no
+# longer runs on a schedule, because each full run leaves test families in the real database.
 name: End-to-end tests
 
 on:
@@ -13,9 +15,6 @@ on:
         type: choice
         options: [full, canary, push]
         default: full
-  schedule:
-    - cron: '37 4 * * *' # canary, every day
-    - cron: '17 5 * * 1' # full, every Monday
 
 permissions:
   contents: write
@@ -29,7 +28,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     env:
-      MODE: ${{ inputs.mode || (github.event.schedule == '17 5 * * 1' && 'full') || 'canary' }}
+      MODE: ${{ inputs.mode || 'full' }}
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5

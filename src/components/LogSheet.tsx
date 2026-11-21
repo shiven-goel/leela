@@ -11,6 +11,7 @@ import {
   TEMP_METHODS,
   TYPES,
 } from '../lib/config'
+import { DOSE_GAPS } from '../lib/alerts'
 import { eventTitle } from '../lib/describe'
 import { activeChild, myPrefs, useLeela } from '../lib/store'
 import { durationText, fmtTime } from '../lib/time'
@@ -47,7 +48,7 @@ function sideSeconds(saved: number | undefined, minutes: number | undefined): nu
   return Math.round((minutes ?? 0) * 60)
 }
 
-function draftFrom(edit: LeelaEvent | undefined, type: EventType, defaultAt: number | undefined, last: LeelaEvent | undefined): Draft {
+function draftFrom(edit: LeelaEvent | undefined, type: EventType, defaultAt: number | undefined, last: LeelaEvent | undefined, preset?: EventData): Draft {
   if (edit) {
     const start = Date.parse(edit.started_at)
     let end = edit.ended_at ? Date.parse(edit.ended_at) : null
@@ -84,6 +85,7 @@ function draftFrom(edit: LeelaEvent | undefined, type: EventType, defaultAt: num
   // The unit picker shows ml until changed, so that's what gets saved.
   if (type === 'medicine') data.unit = 'ml'
   if (type === 'symptom') data.kind = 'symptom'
+  if (preset) Object.assign(data, preset)
   // A past entry starts out ending now (or at the day picked in History), as long as the last one.
   const timed = RANGED.has(type) && !END_OPTIONAL.has(type)
   const withEnd = timed || type === 'pump' || type === 'activity'
@@ -104,6 +106,7 @@ export function LogSheet({
   group,
   edit,
   defaultAt,
+  preset,
 }: {
   open: boolean
   onClose: () => void
@@ -111,6 +114,8 @@ export function LogSheet({
   group?: EventType[]
   edit?: LeelaEvent
   defaultAt?: number
+  /** Fields to start a new entry with (the next dose of a medicine, say). */
+  preset?: EventData
 }) {
   const [type, setType] = useState<EventType>(edit?.type ?? initialType)
   const family = useLeela((s) => s.family)
@@ -128,7 +133,7 @@ export function LogSheet({
     return best
   }, [events, type, child])
 
-  const [draft, setDraft] = useState<Draft>(() => draftFrom(edit, type, defaultAt, last))
+  const [draft, setDraft] = useState<Draft>(() => draftFrom(edit, type, defaultAt, last, type === initialType ? preset : undefined))
   const [details, setDetails] = useState(Boolean(edit))
   const [foodInput, setFoodInput] = useState('')
   // When a timer started from here began: now, or earlier.
@@ -144,7 +149,7 @@ export function LogSheet({
 
   useEffect(() => {
     if (open) {
-      setDraft(draftFrom(edit, type, defaultAt, last))
+      setDraft(draftFrom(edit, type, defaultAt, last, type === initialType ? preset : undefined))
       setTimerWhen({ min: 0 })
       setPickTimerStart(false)
     }
@@ -920,7 +925,7 @@ function MedicineFields({
             <button
               key={r.id}
               type="button"
-              onClick={() => setData({ name: r.data.name, unit: r.data.unit })}
+              onClick={() => setData({ name: r.data.name, unit: r.data.unit, every_h: r.data.every_h ?? null })}
               className="min-h-10 shrink-0 rounded-full bg-card-2 px-4 text-[15px] ring-1 ring-line"
             >
               {r.data.name}
@@ -950,6 +955,16 @@ function MedicineFields({
           </select>
         </div>
       </div>
+      <Field label="Remind about the next dose" hint="Pick the gap your doctor gave. A notification comes when the next dose is due, on every phone with medicine notifications on.">
+        <Choices
+          options={[{ id: 'off', label: 'Off' }, ...DOSE_GAPS.map((h) => ({ id: String(h), label: `${h} h` }))]}
+          value={draft.data.every_h ? String(draft.data.every_h) : 'off'}
+          onChange={(v) => setData({ every_h: !v || v === 'off' ? null : Number(v) })}
+          tone="health"
+          columns={6}
+          compact
+        />
+      </Field>
       <p className="-mt-2 mb-5 text-[13px] text-ink-3">Leela records what was given. It never suggests doses.</p>
     </>
   )

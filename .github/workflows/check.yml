@@ -1,0 +1,86 @@
+# Checks a work branch before it goes live: lint, unit tests, the edge-function bundles and a full
+# build. Runs on every push to a branch other than main (main deploys through deploy.yml, which
+# runs the same tests). The result is also written to the check-results branch as
+# <branch>/report.md, so it can be read without signing in to GitHub.
+name: Check a branch
+
+on:
+  push:
+    branches-ignore: [main, gh-pages, e2e-results, check-results]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: check-${{ github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Lint, unit tests, edge bundles and build
+        id: run
+        continue-on-error: true
+        env:
+          LEELA_BASE: /${{ github.event.repository.name }}/
+        run: |
+          set -o pipefail
+          mkdir -p out
+          status=0
+          step() {
+            name="$1"; shift
+            echo "## $name" >> out/report.md
+            if "$@" > out/step.log 2>&1; then echo "OK" >> out/report.md
+            else echo "FAILED" >> out/report.md; status=1; fi
+            echo '```' >> out/report.md
+            tail -c 20000 out/step.log >> out/report.md
+            echo '```' >> out/report.md
+          }
+          echo "# Check of ${GITHUB_REF_NAME} at ${GITHUB_SHA::7}" > out/report.md
+          step "Lint" npm run lint
+          step "Unit tests" npm test
+          step "Edge bundles" npm run build:edge
+          # Not a failure: shows whether the committed bundles differ from a fresh build, and keeps
+          # the fresh ones in the report so they can be committed.
+          echo "## Edge bundles compared with the committed ones" >> out/report.md
+          echo '```' >> out/report.md
+          git diff --stat -- supabase/functions >> out/report.md || true
+          echo '```' >> out/report.md
+          mkdir -p out/bundles && cp supabase/functions/sweetspot-push/alerts.js out/bundles/ 2>/dev/null || true
+          cp supabase/functions/sweetspot-push/sweetspot.js out/bundles/sweetspot.js 2>/dev/null || true
+          step "Build" npm run build
+          if [ $status -eq 0 ]; then echo "RESULT: PASSED" >> out/report.md; else echo "RESULT: FAILED" >> out/report.md; fi
+          exit $status
+      - name: Publish the report
+        if: always()
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+          url="https://x-access-token:${TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          work=$(mktemp -d)
+          if git ls-remote --exit-code --heads "$url" check-results > /dev/null 2>&1; then
+            git clone -q --depth 1 --branch check-results "$url" "$work/r"
+          else
+            mkdir -p "$work/r" && git -C "$work/r" init -q -b check-results
+          fi
+          mkdir -p "$work/r/${GITHUB_REF_NAME}"
+          cp out/report.md "$work/r/${GITHUB_REF_NAME}/report.md"
+          rm -rf "$work/r/${GITHUB_REF_NAME}/bundles" && cp -r out/bundles "$work/r/${GITHUB_REF_NAME}/bundles" 2>/dev/null || true
+          cd "$work/r"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -q -m "Check ${GITHUB_REF_NAME} ${GITHUB_SHA::7}" || exit 0
+          git push -q "$url" HEAD:check-results
+          cat "${GITHUB_REF_NAME}/report.md" >> "$GITHUB_STEP_SUMMARY"
+      - name: Fail if a check failed
+        if: steps.run.outcome == 'failure'
+        run: exit 1

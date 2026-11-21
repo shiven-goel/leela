@@ -15,6 +15,7 @@ import { ImportScreen } from './screens/ImportScreen'
 import { NotesScreen } from './screens/NotesScreen'
 import { OnboardingScreen } from './screens/OnboardingScreen'
 import { TodayScreen } from './screens/TodayScreen'
+import { VaccinesScreen } from './screens/VaccinesScreen'
 
 export function App() {
   const status = useLeela((s) => s.status)
@@ -23,6 +24,27 @@ export function App() {
   const family = useLeela((s) => s.family)
   const overlay = useLeela((s) => s.overlay)
   const closeOverlay = () => useLeela.getState().set({ overlay: null })
+
+  // A tapped notification can ask for a screen: ?open=vaccines in a new window, or a message from
+  // the service worker when Leela was already open (public/push-sw.js).
+  const ready = status === 'ready' && Boolean(family) && !onboarding
+  useEffect(() => {
+    if (!ready) return
+    const go = (what: unknown) => {
+      if (what === 'vaccines') useLeela.getState().set({ tab: 'today', overlay: { kind: 'vaccines' } })
+      else if (what === 'today') useLeela.getState().set({ tab: 'today' })
+    }
+    const url = new URL(window.location.href)
+    const asked = url.searchParams.get('open')
+    if (asked) {
+      go(asked)
+      url.searchParams.delete('open')
+      window.history.replaceState(window.history.state, '', url.toString())
+    }
+    const onMessage = (e: MessageEvent) => go((e.data as { leelaOpen?: unknown } | null)?.leelaOpen)
+    navigator.serviceWorker?.addEventListener('message', onMessage)
+    return () => navigator.serviceWorker?.removeEventListener('message', onMessage)
+  }, [ready])
 
   useEffect(() => {
     applyTheme(family)
@@ -56,6 +78,7 @@ export function App() {
         <ImportScreen open={overlay?.kind === 'import'} onClose={closeOverlay} />
         <NoteEditor open={overlay?.kind === 'note'} noteId={overlay?.kind === 'note' ? overlay.id : undefined} onClose={closeOverlay} />
         <BookScreen open={overlay?.kind === 'book'} onClose={closeOverlay} />
+        <VaccinesScreen open={overlay?.kind === 'vaccines'} onClose={closeOverlay} />
       </>
     )
   }

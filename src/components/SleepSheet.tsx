@@ -2,7 +2,7 @@ import { MoonStars, PencilSimple, Plus, SunHorizon, Trash } from '@phosphor-icon
 import { useEffect, useState } from 'react'
 import { useNow } from '../hooks/useNow'
 import { deleteEvent, startTimer, stopTimer } from '../lib/actions'
-import { displayName, useLeela } from '../lib/store'
+import { loggedBy, useLeela } from '../lib/store'
 import { phase, type SweetSpot } from '../lib/sweetspot'
 import { fmtRange, spanText } from '../lib/sweetspotText'
 import { clockText, fmtTime } from '../lib/time'
@@ -37,7 +37,7 @@ export function SleepSheet({
 }) {
   const now = useNow(1000)
   const family = useLeela((s) => s.family)
-  const userId = useLeela((s) => s.userId)
+  useLeela((s) => s.userId)
   useLeela((s) => s.profiles)
   const tz = family?.timezone ?? 'UTC'
   const [when, setWhen] = useState<When>({ min: 0 })
@@ -97,7 +97,7 @@ export function SleepSheet({
     return null
   })()
 
-  const by = running ? (running.created_by === userId ? 'you' : displayName(running.created_by)) : ''
+  const by = running ? loggedBy(running) : ''
 
   return (
     <Sheet open={open} onClose={onClose} title="Sleep" tone="sleep">

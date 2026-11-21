@@ -59,6 +59,10 @@ export interface EventData {
   // symptoms & visits
   tags?: string[]
   vaccine?: string
+  /** Vaccine doses this entry covers (ids from vaccines.ts). */
+  vax?: string[]
+  /** Medicine: hours until the next dose, when the family asked for a reminder. */
+  every_h?: number | null
   // activities & milestones
   label?: string
   // notes: long text lives here, the short `notes` column is for comments on other entries
@@ -135,6 +139,8 @@ export interface Prefs {
   feedDefault?: 'nursing' | 'bottle'
   /** How this parent writes numeric dates. */
   dateOrder?: 'dmy' | 'mdy'
+  /** Which notifications this person gets (see alerts.ts). */
+  alerts?: Partial<{ sweetspot: boolean; medicine: boolean; vaccines: boolean; summary: boolean; summaryAt: string }>
 }
 
 export interface Child {

@@ -1,14 +1,25 @@
-// Sweet spot reminders. Called every minute by pg_cron (action "cron", with the shared secret):
-// works out each baby's next nap or bedtime with the same code as the app (sweetspot.js is built
-// from src/lib/sweetspot.ts) and sends one Web Push per phone that asked for a reminder, once per
-// sleep. A signed-in person can also ask for a test notification on their own phones (action
-// "test"). Deploy with verify_jwt = false: this function checks the secret or the user itself.
+// Leela's notifications. Called every minute by pg_cron (action "cron", with the shared secret):
+// - Sweet spot: works out each baby's next nap or bedtime with the same code as the app
+//   (sweetspot.js is built from src/lib/sweetspot.ts), once per sleep.
+// - Medicine: when the next dose of a medicine logged with "remind me" is due.
+// - Vaccines: two days before and on the day a vaccine visit is due.
+// - Summary: the day so far, once every evening at the time each person chose.
+// Medicine, vaccine and summary code is shared with the app too (alerts.js is built from
+// src/lib/alerts.ts). Each person chooses which of these they get (profiles.prefs.alerts); they go
+// to every phone where that person turned notifications on. Each one goes out once per phone
+// (push_sent). A signed-in person can also ask for a test notification on their own phones
+// (action "test"). Deploy with verify_jwt = false: this function checks the secret or the user.
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import { sweetSpot } from './sweetspot.js'
+import { clockText, dayCounts, localDay, localMidnight, localMinute, medicinesDue, readAlerts, summaryText, vaccinePlan, vaccineReminder } from './alerts.js'
 import { sendPush, type Vapid } from './webpush.ts'
 
 const DAY = 86_400_000
-const SUBJECT = 'https://shiven-goel.github.io/leela/'
+const H = 3_600_000
+const SUBJECT = 'https://vahsekatilap.github.io/leela/'
+/** Phones that turned reminders on before the move still have the old address saved. */
+const OLD_ADDRESS = /^https:\/\/shiven-goel\.github\.io\/leela\/?/
+const appUrl = (sub: { app_url: string | null }) => (sub.app_url ? sub.app_url.replace(OLD_ADDRESS, SUBJECT) : SUBJECT)
 
 const cors = {
   'Access-Control-Allow-Origin': '*',
@@ -69,6 +80,19 @@ async function deliver(admin: Db, sub: Sub, message: Record<string, unknown>, va
   }
 }
 
+/** Marks one notification as sent to a phone. False if it was already sent (or marking failed). */
+async function claim(admin: Db, sub: Sub, childId: string, slot: string): Promise<boolean> {
+  const { data: marked, error } = await admin
+    .from('push_sent')
+    .upsert({ subscription_id: sub.id, child_id: childId, slot }, { onConflict: 'subscription_id,child_id,slot', ignoreDuplicates: true })
+    .select('slot')
+  if (error) {
+    console.error('push_sent', error.message)
+    return false // tried again next minute
+  }
+  return Boolean(marked?.length)
+}
+
 async function remind(admin: Db, vapid: Vapid) {
   const now = Date.now()
   const { data: subs } = await admin.from('push_subscriptions').select('id, user_id, family_id, endpoint, p256dh, auth, lead_min, app_url').is('disabled_at', null)
@@ -87,13 +111,19 @@ async function remind(admin: Db, vapid: Vapid) {
     await admin.from('push_subscriptions').update({ disabled_at: new Date().toISOString(), disabled_reason: 'left the family' }).in('id', stale.map((s) => s.id))
   }
   if (!kids?.length) return { phones: subs.length, sent: 0 }
+  // What each person asked for (their choices apply on all their phones).
+  const { data: people } = await admin.from('profiles').select('id, prefs').in('id', [...new Set((subs as Sub[]).map((s) => s.user_id))])
+  const wants = new Map<string, ReturnType<typeof readAlerts>>((people ?? []).map((p: { id: string; prefs: Record<string, unknown> }) => [p.id, readAlerts(p.prefs)]))
+  const want = (sub: Sub) => wants.get(sub.user_id) ?? readAlerts({})
+
+  const kidIds = kids.map((k: { id: string }) => k.id)
   const since = new Date(now - 16 * DAY).toISOString()
   const sleeps: Record<string, unknown>[] = []
   for (let from = 0; ; from += 1000) {
     const { data } = await admin
       .from('events')
       .select('id, family_id, child_id, type, started_at, ended_at, timer_state, data, deleted_at')
-      .in('child_id', kids.map((k: { id: string }) => k.id))
+      .in('child_id', kidIds)
       .eq('type', 'sleep')
       .is('deleted_at', null)
       .gte('started_at', since)
@@ -114,6 +144,7 @@ async function remind(admin: Db, vapid: Vapid) {
     const slot = `${localDate(w.center, fam.timezone)}/${w.kind === 'bedtime' ? 'bed' : `nap${w.napNumber ?? ''}`}`
     const endpoints = new Set<string>()
     for (const sub of (subs as Sub[]).filter((s) => s.family_id === kid.family_id && member.has(`${s.family_id}/${s.user_id}`))) {
+      if (!want(sub).sweetspot) continue
       if (now < w.start - sub.lead_min * 60_000 || now > w.end) continue
       due++
       // One reminder per phone per sleep, even if the prediction moves a little afterwards. Marking
@@ -135,14 +166,106 @@ async function remind(admin: Db, vapid: Vapid) {
         title: mins >= 2 ? `${kid.name}’s ${what} sweet spot in ${mins} min` : `${kid.name}’s ${what} sweet spot is now`,
         body: mins >= 10 ? `Sweet spot ${range(w.start, w.end, fam.timezone)}. A good time to start winding down.` : `Sweet spot ${range(w.start, w.end, fam.timezone)}.`,
         tag: `sweetspot-${kid.id}`,
-        url: sub.app_url ?? SUBJECT,
+        url: appUrl(sub),
       }
       const status = await deliver(admin, sub, message, vapid)
       await admin.from('push_sent').update({ status }).match({ subscription_id: sub.id, child_id: kid.id, slot })
       if (status >= 200 && status < 300) sent++
     }
   }
-  return { phones: subs.length, babies: kids.length, due, sent }
+
+  // Medicine, vaccines and the evening summary. Kept apart so a problem here never stops the
+  // sweet spot reminders above.
+  let other = 0
+  try {
+    other = await others(admin, vapid, now, subs as Sub[], member, families ?? [], kids, want)
+  } catch (e) {
+    console.error('other notifications failed', String(e))
+  }
+  return { phones: subs.length, babies: kids.length, due, sent, other }
+}
+
+// deno-lint-ignore no-explicit-any
+type Row = Record<string, any>
+
+async function others(admin: Db, vapid: Vapid, now: number, subs: Sub[], member: Set<string>, families: Row[], kids: Row[], want: (s: Sub) => ReturnType<typeof readAlerts>) {
+  const kidIds = kids.map((k) => k.id)
+  // The last two days of everything (for medicines and today's summary), and every vaccine entry.
+  const [{ data: recent }, { data: vax }] = await Promise.all([
+    admin
+      .from('events')
+      .select('id, family_id, child_id, type, started_at, ended_at, timer_state, data, deleted_at')
+      .in('child_id', kidIds)
+      .is('deleted_at', null)
+      .gte('started_at', new Date(now - 2 * DAY).toISOString())
+      .order('started_at')
+      .limit(5000),
+    admin
+      .from('events')
+      .select('id, family_id, child_id, type, started_at, ended_at, timer_state, data, deleted_at')
+      .in('child_id', kidIds)
+      .eq('type', 'symptom')
+      .eq('data->>kind', 'vaccine')
+      .is('deleted_at', null)
+      .limit(2000),
+  ])
+  const events = (recent ?? []) as Row[]
+  let sent = 0
+  const send = async (sub: Sub, kid: Row, slot: string, message: Row) => {
+    if (!(await claim(admin, sub, kid.id, slot))) return
+    const status = await deliver(admin, sub, { ...message, url: appUrl(sub) }, vapid)
+    await admin.from('push_sent').update({ status }).match({ subscription_id: sub.id, child_id: kid.id, slot })
+    if (status >= 200 && status < 300) sent++
+  }
+
+  for (const kid of kids) {
+    const fam = families.find((f) => f.id === kid.family_id)
+    if (!fam) continue
+    const tz = fam.timezone || 'UTC'
+    const phones = subs.filter((s) => s.family_id === kid.family_id && member.has(`${s.family_id}/${s.user_id}`))
+    if (!phones.length) continue
+    const mine = events.filter((e) => e.child_id === kid.id)
+
+    // Medicine: from the moment the next dose is due, for up to 3 hours (a phone that was off).
+    const meds = medicinesDue(mine as never, kid.id).filter((m) => now >= m.dueAt && now < m.dueAt + 3 * H)
+    for (const m of meds) {
+      for (const sub of phones) {
+        if (!want(sub).medicine) continue
+        await send(sub, kid, `med/${m.eventId}`, {
+          title: `${kid.name}’s next ${m.name} is due`,
+          body: `Last given ${clockText(m.lastAt, tz)}${m.dose ? ` (${m.dose})` : ''}, ${m.everyH} hours ago. Log it in Leela when it’s given.`,
+          tag: `medicine-${kid.id}-${m.name.toLowerCase()}`,
+          open: 'today',
+        })
+      }
+    }
+
+    // Vaccines: from 9 in the morning, two days before and on the day.
+    const minute = localMinute(now, tz)
+    const today = localDay(now, tz)
+    if (minute >= 9 * 60 && minute < 21 * 60) {
+      const r = vaccineReminder(vaccinePlan(kid as never, (vax ?? []) as never, today), kid.name)
+      if (r) {
+        for (const sub of phones) {
+          if (!want(sub).vaccines) continue
+          await send(sub, kid, r.slot, { title: r.title, body: r.body, tag: `vaccines-${kid.id}`, open: 'vaccines' })
+        }
+      }
+    }
+
+    // The evening summary: at each person's chosen time, for up to 2 hours.
+    for (const sub of phones) {
+      const w = want(sub)
+      if (!w.summary) continue
+      const [h, m] = w.summaryAt.split(':').map(Number)
+      const at = h * 60 + m
+      if (minute < at || minute >= at + 120) continue
+      const from = localMidnight(now, tz)
+      const t = summaryText(kid.name, dayCounts(mine as never, kid.id, from, now))
+      await send(sub, kid, `sum/${today}`, { ...t, tag: `summary-${kid.id}`, open: 'today' })
+    }
+  }
+  return sent
 }
 
 Deno.serve(async (req) => {
@@ -184,7 +307,7 @@ Deno.serve(async (req) => {
     if (!subs?.length) return reply({ error: 'no_phone' }, 404)
     const statuses = []
     for (const sub of subs as Sub[]) {
-      statuses.push(await deliver(admin, sub, { title: 'Leela reminders are on', body: `You’ll get a notification ${sub.lead_min} minutes before each sweet spot.`, tag: 'leela-test', url: sub.app_url ?? SUBJECT }, cfg.vapid))
+      statuses.push(await deliver(admin, sub, { title: 'Leela notifications are on', body: 'This is how Leela’s notifications will look on this phone.', tag: 'leela-test', url: appUrl(sub) }, cfg.vapid))
     }
     return reply({ ok: statuses.some((s) => s >= 200 && s < 300), statuses })
   }

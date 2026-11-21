@@ -61,7 +61,7 @@ export function eventDetail(
     }
     case 'bottle':
       if (d.amount_ml !== undefined) parts.push(`${Math.round(d.amount_ml)} ml`)
-      if (d.contents) parts.push(d.contents === 'breast' ? 'breast milk' : d.contents === 'mixed' ? 'mixed' : 'formula')
+      if (d.contents) parts.push(d.contents === 'breast' || (d.contents as string) === 'breastmilk' ? 'breast milk' : d.contents === 'mixed' ? 'mixed' : 'formula')
       if (timedLength(e)) parts.push(dur())
       break
     case 'pump': {
@@ -98,7 +98,8 @@ export function eventDetail(
       if (d.method) parts.push(TEMP_METHODS.find((m) => m.id === d.method)?.label.toLowerCase() ?? '')
       break
     case 'medicine':
-      parts.push([d.name, d.dose, d.unit].filter(Boolean).join(' '))
+      parts.push([d.name, d.dose, d.dose ? d.unit : undefined].filter(Boolean).join(' '))
+      if (d.every_h) parts.push(`next in ${d.every_h} h`)
       break
     case 'symptom':
       if (d.vaccine) parts.push(String(d.vaccine))

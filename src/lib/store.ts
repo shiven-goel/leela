@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import type { Child, Family, LeelaEvent, Member, Prefs, Profile, TimerSegment } from './types'
 
 export type Tab = 'today' | 'history' | 'notes' | 'diary' | 'family'
-export type OverlayState = { kind: 'import' } | { kind: 'note'; id?: string } | { kind: 'book' } | null
+export type OverlayState = { kind: 'import' } | { kind: 'note'; id?: string } | { kind: 'book' } | { kind: 'vaccines' } | null
 export type Status = 'loading' | 'signed_out' | 'no_family' | 'ready'
 
 export interface Toast {
@@ -144,4 +144,19 @@ export function displayName(userId: string | null | undefined): string {
 export function activeChild(): Child | null {
   const s = getState()
   return s.children.find((c) => c.id === s.activeChildId) ?? s.children[0] ?? null
+}
+
+/** The name of whoever logged an entry from Ghar (family or nanny), if it came from there. */
+export function gharName(e: Pick<LeelaEvent, 'data'>): string | null {
+  const g = e.data?.ghar as { by?: unknown } | undefined
+  return g && typeof g.by === 'string' && g.by.trim() ? g.by.trim() : null
+}
+
+/** Who logged an entry: "you", a family member's name, or the Ghar person who logged it. */
+export function loggedBy(e: Pick<LeelaEvent, 'data' | 'created_by'>, opts: { capital?: boolean } = {}): string {
+  const s = getState()
+  const ghar = gharName(e)
+  if (ghar) return ghar
+  if (e.created_by && e.created_by === s.userId) return opts.capital ? 'You' : 'you'
+  return displayName(e.created_by)
 }
