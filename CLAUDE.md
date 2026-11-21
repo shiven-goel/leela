@@ -20,6 +20,14 @@ Ghar, the family's Android app (repo `vahsekatilap/ghar`, Supabase project `sfjz
 
 One edge function, `sweetspot-push`, sends every notification, every minute from pg_cron: the sweet spot, medicine doses (medicines logged with "Remind about the next dose" keep `data.every_h`; the latest entry of that medicine decides), vaccines (2 days before and on the day, from 9 am) and the evening summary (at each person's time). Each person's choices are in `profiles.prefs.alerts` (`readAlerts()` in `src/lib/alerts.ts`; all on by default, summary 8:30 pm) and apply to every phone where they turned notifications on (`push_subscriptions`). `push_sent` makes each one go out once per phone. Medicine, vaccine and summary code lives in `src/lib/alerts.ts` and `src/lib/vaccines.ts` with no libraries, bundled into `sweetspot-push/alerts.js` by `npm run build:edge`; redeploy `sweetspot-push` after changing them.
 
+## Sweet spot (rebuilt 21 Nov 2026)
+
+`src/lib/sweetspot.ts` (no libraries) learns each baby's own rhythm; there are no fixed targets. Awake time before the next sleep comes from weighted quantiles of past awake gaps near the same time of day (recent days count most, half-life 7 days, half pulled to the clock time), nap and night lengths likewise, and the baby's own night (onset, wake, length) from recent long sleeps (half-life 2 days), so a moved bedtime is followed within a few nights. Nights last until the usual wake time; awake in the night gives a `resettle` bedtime (no notification). Feeds know the baby doesn't feed in long sleeps (`feed.when`: gap, on-waking, before-sleep). `accuracy` re-predicts the last two weeks for the Sweet spot screen. Keshav chose not to set a bedtime goal (Nov 2026); revisit with him in a few weeks only if needed. Tune with backtests on real logs kept outside the repo (it's public), never commit them.
+
+## Massage and vitamins
+
+Massage is an activity kind (`massage`; older imported ones have `data.label` 'Massage') with its own home button. Daily vitamins: the list is `children.settings.supplements` (`src/lib/supplements.ts`), the Vitamins home button opens `src/components/Vitamins.tsx`, and each one given is a Medicine entry with `data.supplement: true`. Home buttons are now a 3×3 grid: Sleep, Feed, Diaper, Bottle, Pump, Bath, Massage, Vitamins, More.
+
 ## Vaccines
 
 Leela's three earlier Vaccine entries (1 Sep, 30 Sep, 30 Oct 2026) were linked to the 6, 10 and 14-week doses on 21 Nov 2026, and the birth doses marked as given before.
@@ -43,7 +51,7 @@ Network installs may not work in Claude's workspace. Push work to a branch first
 - Dark theme by default, always (`[data-theme="dark"]` in `src/index.css`); Settings offers Warm night and Light per phone. `index.html` and the manifest are dark from the first frame so there is never a white flash.
 - Logo: the LAP wordmark (ivory letters, the A's crossbar an amber curve like a lap) on charcoal: `public/favicon.svg`, the PNG icons and `src/components/LeelaMark.tsx`.
 - Pumping is shared with the whole family (`sharedWithFamily` in `src/lib/config.ts`, `showsFor()`); contractions stay private.
-- Home buttons: Sleep, Feed, Diaper, Bottle, Pump, Bath, then More. Bottle and pumping start now and stop later; stopping opens the entry to fill in the amount.
+- Home buttons: Sleep, Feed, Diaper, Bottle, Pump, Bath, Massage, Vitamins, More (a 3×3 grid). Bottle and pumping start now and stop later; stopping opens the entry to fill in the amount.
 - Times are picked on scroll wheels (`WheelTimeSheet` in `src/components/TimeField.tsx`), never the clock dial.
 - The timeline shows "35 min · 8:45 – 9:20 AM" under each entry that lasts a while (`timeSpanText()` in `src/lib/describe.ts`).
 - The Family tab is now Settings. The admin panel (`src/screens/AdminScreen.tsx`, edge function `admin`) shows only to people whose `profiles.prefs.admin` is true: Keshav. Nobody else should see that it exists. WHO growth curves and percentiles appear only there; History shows plain growth.
