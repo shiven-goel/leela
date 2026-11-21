@@ -87,7 +87,9 @@ interface Report {
 
 function ReportDoc({ report, childName, birth, tz, days }: { report: Report; childName: string; birth: string | null; tz: string; days: number }) {
   const prefs = myPrefs()
-  const avg = (f: (s: Report['stats'][number]) => number) => report.stats.reduce((a, s) => a + f(s), 0) / Math.max(1, report.stats.length)
+  // Averages over the days that have something logged, so a day with no entries doesn't drag them down.
+  const logged = report.stats.filter((s) => s.totals.sleepMs || s.totals.feeds || s.totals.diapers)
+  const avg = (f: (s: Report['stats'][number]) => number) => logged.reduce((a, s) => a + f(s), 0) / Math.max(1, logged.length)
   const th = { textAlign: 'left' as const, padding: '4px 6px', borderBottom: `1px solid ${LINE}`, color: INK2, fontWeight: 600 }
   const td = { padding: '4px 6px', borderBottom: `1px solid ${LINE}` }
   return (

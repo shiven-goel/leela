@@ -1,6 +1,6 @@
-# Leela – notes for Claude
+# LAPdiary (was Leela) – notes for Claude
 
-Leela is the baby tracker Keshav and Nida use for their daughter Leela. It was built by their friend Shiven and handed over to Keshav on 21 Nov 2026; Keshav now owns it and develops it with Claude.
+LAPdiary is the baby tracker Keshav and Nida use for their daughter Leela (Leela Ansari Palita; the app was called Leela until 21 Nov 2026 and the code, repo, database and web address still use that name, so keep them). In anything the family sees, the app is "LAPdiary" and "Leela" means the baby. It was built by their friend Shiven and handed over to Keshav on 21 Nov 2026; Keshav now owns it and develops it with Claude.
 
 - Code: this repo (`vahsekatilap/leela`, public). React + Vite PWA, deployed to GitHub Pages by `.github/workflows/deploy.yml` at https://vahsekatilap.github.io/leela/.
 - Database: Supabase project `rtebcagicaypvgfeqsjn` ("Leela", West EU), in Keshav's "Palita Family" organisation. The app uses only the publishable key (`.env.production`). Secret API key `default` was replaced on 21 Nov; legacy keys are disabled and the old HS256 signing key is revoked; the database password was reset and nobody keeps it.
@@ -32,11 +32,22 @@ The `backup` edge function (verify_jwt off, checks the cron secret) saves a gzip
 
 ## Deploying edge functions
 
-The deployed functions are one-line wrappers made in the Supabase dashboard (Edge Functions > function > Code > Deploy updates): `import 'https://cdn.jsdelivr.net/gh/vahsekatilap/leela@<commit>/supabase/functions/<name>/index.ts'`. The real code and its helper files load from that exact commit, so push first, then change the commit in the wrapper. `ghar-bridge`, `sweetspot-push` and `backup` are deployed this way (commit `50e82d4`, 21 Nov 2026); all three have Verify JWT off. `leela-check` is Shiven's old one-off test function.
+The deployed functions are one-line wrappers made in the Supabase dashboard (Edge Functions > function > Code > Deploy updates): `import 'https://cdn.jsdelivr.net/gh/vahsekatilap/leela@<commit>/supabase/functions/<name>/index.ts'`. The real code and its helper files load from that exact commit, so push first, then change the commit in the wrapper. `ghar-bridge`, `sweetspot-push`, `backup` and `admin` are deployed this way; all have Verify JWT off. The Supabase connector's deploy_edge_function can also deploy the one-line wrapper directly. `leela-check` is Shiven's old one-off test function.
 
 ## Checking work
 
 Network installs may not work in Claude's workspace. Push work to a branch first: `.github/workflows/check.yml` runs lint, unit tests, the edge bundles and the build, and writes `<branch>/report.md` (plus freshly built `bundles/`) to the `check-results` branch, readable with git. Merge to main only when it passes; main deploys the app.
+
+## Look and behaviour (Keshav's choices, Nov 2026)
+
+- Dark theme by default, always (`[data-theme="dark"]` in `src/index.css`); Settings offers Warm night and Light per phone. `index.html` and the manifest are dark from the first frame so there is never a white flash.
+- Logo: the LAP wordmark (ivory letters, the A's crossbar an amber curve like a lap) on charcoal: `public/favicon.svg`, the PNG icons and `src/components/LeelaMark.tsx`.
+- Pumping is shared with the whole family (`sharedWithFamily` in `src/lib/config.ts`, `showsFor()`); contractions stay private.
+- Home buttons: Sleep, Feed, Diaper, Bottle, Pump, Bath, then More. Bottle and pumping start now and stop later; stopping opens the entry to fill in the amount.
+- Times are picked on scroll wheels (`WheelTimeSheet` in `src/components/TimeField.tsx`), never the clock dial.
+- The timeline shows "35 min · 8:45 – 9:20 AM" under each entry that lasts a while (`timeSpanText()` in `src/lib/describe.ts`).
+- The Family tab is now Settings. The admin panel (`src/screens/AdminScreen.tsx`, edge function `admin`) shows only to people whose `profiles.prefs.admin` is true: Keshav. Nobody else should see that it exists. WHO growth curves and percentiles appear only there; History shows plain growth.
+- Sync: opening the app with a copy on the phone fetches only what changed (`refresh()`), renewing the sign-in first; coming back to the app (`resume()`) catches up at once and reconnects live updates; a 15-second safety check runs while live updates are down. While catching up after a long gap, Today says so and dims timers.
 
 ## Known follow-ups
 
