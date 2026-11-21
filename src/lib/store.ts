@@ -81,7 +81,7 @@ const initial = {
   catchUpSince: null,
   catchUpDismissed: false,
   tab: 'today' as Tab,
-  historyView: 'day' as 'day' | 'week' | 'month' | 'all',
+  historyView: 'week' as 'day' | 'week' | 'month' | 'all',
   toasts: [],
   conflict: null,
   removedNotice: false,
