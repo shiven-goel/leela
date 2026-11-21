@@ -9,3 +9,4 @@ playwright-report
 # End-to-end test output and the canary login (never commit these)
 e2e-results/
 .canary/
+preview

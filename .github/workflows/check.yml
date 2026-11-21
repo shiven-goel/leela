@@ -56,6 +56,8 @@ jobs:
           mkdir -p out/bundles && cp supabase/functions/sweetspot-push/alerts.js out/bundles/ 2>/dev/null || true
           cp supabase/functions/sweetspot-push/sweetspot.js out/bundles/sweetspot.js 2>/dev/null || true
           step "Build" npm run build
+          # A copy with sample data (src/dev/seed.ts, ?preview) to look at new screens without signing in.
+          step "Preview build" env NODE_ENV=development npx vite build --mode development --base ./ --outDir preview
           if [ $status -eq 0 ]; then echo "RESULT: PASSED" >> out/report.md; else echo "RESULT: FAILED" >> out/report.md; fi
           exit $status
       - name: Publish the report
@@ -74,6 +76,7 @@ jobs:
           mkdir -p "$work/r/${GITHUB_REF_NAME}"
           cp out/report.md "$work/r/${GITHUB_REF_NAME}/report.md"
           rm -rf "$work/r/${GITHUB_REF_NAME}/bundles" && cp -r out/bundles "$work/r/${GITHUB_REF_NAME}/bundles" 2>/dev/null || true
+          rm -rf "$work/r/${GITHUB_REF_NAME}/preview" && cp -r preview "$work/r/${GITHUB_REF_NAME}/preview" 2>/dev/null || true
           cd "$work/r"
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
