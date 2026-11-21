@@ -33,7 +33,8 @@ assert.equal(night.start, at('2026-10-30', '19:30'))
 assert.equal(night.end, at('2026-10-31', '06:30'))
 const col31 = cols[cols.length - 2]
 const kinds = col31.marks.map((m) => `${m.type}:${m.kind}`)
-assert.deepEqual(kinds.sort(), ['bottle:feed', 'diaper:diaper', 'medicine:health', 'nursing:feed', 'sleep:nap'].sort(), kinds.join())
+// Pumping is shared with the family, so someone else's pumping shows too (since 21 Nov 2026).
+assert.deepEqual(kinds.sort(), ['bottle:feed', 'diaper:diaper', 'medicine:health', 'nursing:feed', 'pump:other', 'sleep:nap'].sort(), kinds.join())
 // A breastfeed logged with sides lasts as long as its sides.
 const nurse = col31.marks.find((m) => m.type === 'nursing')!
 assert.equal(nurse.end - nurse.start, 900_000)
