@@ -106,7 +106,7 @@ assert.equal(text.title, 'Leela’s day so far')
 assert.equal(text.body, 'Slept 6 h 30 m · 2 feeds: 1 breastfeed, 1 bottle (90 ml) · 2 nappies (2 wet, 1 dirty) · 3 medicine doses.')
 
 // ---------------------------------------------------------------- choices
-assert.deepEqual(readAlerts({}), { sweetspot: true, medicine: true, vaccines: true, summary: true, summaryAt: '20:30' })
+assert.deepEqual(readAlerts({}), { sweetspot: true, medicine: true, vaccines: true, summary: true, summaryAt: '20:30', pump: false })
 assert.equal(readAlerts({ alerts: { summaryAt: '25:00' } }).summaryAt, '20:30')
 assert.equal(readAlerts({ alerts: { medicine: false } }).medicine, false)
 
