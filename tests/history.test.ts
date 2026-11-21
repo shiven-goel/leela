@@ -123,8 +123,9 @@ assert.equal(headline(massage, ds).value, '3 times')
 assert.equal(bucketValue(massage, ds), 3)
 assert.match(detailNote(bath, ds)!, /2 of 7 were logged with a length/)
 assert.equal(detailNote(massage, ds)?.includes('None were logged with a length'), true)
-assert.equal(headline(vit, ds).value, '2 of 7')
-assert.match(headline(vit, ds).sub, /Vitamin D 2\/7/)
+// Vitamins started two days ago: counted from the first one.
+assert.equal(headline(vit, ds).value, '2 of 2')
+assert.match(headline(vit, ds).sub, /Vitamin D 2\/2 · since the first/)
 
 const bathEntries = entriesOf(bath, events, 'c', 'u', week.from, week.to)
 assert.equal(bathEntries.length, 7)
